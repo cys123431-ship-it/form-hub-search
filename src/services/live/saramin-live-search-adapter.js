@@ -16,6 +16,12 @@ const buildItemKey = (pageUrl) => {
   return matched?.[1] ?? pageUrl.split("rec_idx=").at(-1) ?? pageUrl;
 };
 
+const buildCanonicalPageUrl = (href) => {
+  const absoluteUrl = toAbsoluteUrl(baseUrl, href);
+  const itemKey = buildItemKey(absoluteUrl);
+  return itemKey ? `${baseUrl}/zf_user/jobs/relay/view?rec_idx=${itemKey}` : absoluteUrl;
+};
+
 const createParsedPosting = ({ pageUrl, companyName, title, queryText }) => {
   const normalizedCompany = toText(companyName);
   const normalizedTitle = toText(title);
@@ -40,7 +46,7 @@ const extractCards = (html, queryText) => {
   for (const match of html.matchAll(listItemPattern)) {
     const companyName = decodeHtml(match[1]);
     const title = decodeHtml(match[2]);
-    const pageUrl = toAbsoluteUrl(baseUrl, match[3]);
+    const pageUrl = buildCanonicalPageUrl(match[3]);
     if (!pageUrl || seen.has(pageUrl)) {
       continue;
     }
