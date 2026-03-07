@@ -6,6 +6,7 @@ import { ClassificationService } from "./services/classify/classification-servic
 import { CrawlService } from "./services/crawl/crawl-service.js";
 import { ManualJsonSourceAdapter } from "./services/crawl/manual-json-source-adapter.js";
 import { GojobsLiveSearchAdapter } from "./services/live/gojobs-live-search-adapter.js";
+import { JobAlioLiveSearchAdapter } from "./services/live/job-alio-live-search-adapter.js";
 import { JobKoreaLiveSearchAdapter } from "./services/live/jobkorea-live-search-adapter.js";
 import { LiveRecruitmentService } from "./services/live/live-recruitment-service.js";
 import { SaraminLiveSearchAdapter } from "./services/live/saramin-live-search-adapter.js";
@@ -28,6 +29,7 @@ export const createAppContext = async () => {
     ["jobkorea_live_search", new JobKoreaLiveSearchAdapter()],
     ["saramin_live_search", new SaraminLiveSearchAdapter()],
     ["gojobs_live_search", new GojobsLiveSearchAdapter()],
+    ["job_alio_live_search", new JobAlioLiveSearchAdapter()],
   ]);
   const crawlService = new CrawlService({ repository, classificationService, adapterRegistry });
   const liveRecruitmentService = new LiveRecruitmentService({ repository, classificationService, adapterRegistry });

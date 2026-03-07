@@ -83,6 +83,22 @@
       "crawlIntervalMinutes": 30,
       "requestTimeoutMs": 8000,
       "policyNote": "나라일터 공개 채용정보 목록을 실시간 조회"
+    },
+    {
+      "id": "source_job_alio_live",
+      "name": "JOB-ALIO 공공기관 채용 검색",
+      "baseUrl": "https://job.alio.go.kr/recruit.do",
+      "sourceType": "live_search",
+      "parserKey": "job_alio_live_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.94,
+      "crawlIntervalMinutes": 30,
+      "requestTimeoutMs": 8000,
+      "policyNote": "JOB-ALIO 공공기관 채용정보를 실시간 조회"
     }
   ],
   "tags": [
@@ -136,6 +152,7 @@
     { "id": "rule_labor_domain", "tagId": "tag_labor", "ruleName": "labor domain", "matchField": "all", "patternType": "contains", "patternValue": "근로", "polarity": "include", "weight": 1.0 },
     { "id": "rule_design_domain", "tagId": "tag_design", "ruleName": "design domain", "matchField": "all", "patternType": "contains", "patternValue": "디자인", "polarity": "include", "weight": 1.2 },
     { "id": "rule_public_company", "tagId": "tag_public_company", "ruleName": "public company", "matchField": "all", "patternType": "contains", "patternValue": "공기업", "polarity": "include", "weight": 1.2 },
+    { "id": "rule_public_company_public_inst", "tagId": "tag_public_company", "ruleName": "public institution", "matchField": "all", "patternType": "contains", "patternValue": "공공기관", "polarity": "include", "weight": 1.3 },
     { "id": "rule_civil_service", "tagId": "tag_civil_service", "ruleName": "civil service", "matchField": "all", "patternType": "contains", "patternValue": "공무원", "polarity": "include", "weight": 1.4 },
     { "id": "rule_civil_service_state", "tagId": "tag_civil_service", "ruleName": "civil service state", "matchField": "all", "patternType": "contains", "patternValue": "국가공무원", "polarity": "include", "weight": 1.4 },
     { "id": "rule_civil_service_local", "tagId": "tag_civil_service", "ruleName": "civil service local", "matchField": "all", "patternType": "contains", "patternValue": "지방공무원", "polarity": "include", "weight": 1.4 },

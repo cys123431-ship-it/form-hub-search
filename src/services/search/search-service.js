@@ -13,6 +13,7 @@ const toPageNumber = (value, fallback) => {
 
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
+const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -121,11 +122,17 @@ const isCivilServiceSearch = ({ queryTokens, organizationQueries, tagSlugs }) =>
   queryTokens.some((token) => includesAnyText(token, civilServiceTerms)) ||
   organizationQueries.some((query) => includesAnyText(query, civilServiceTerms));
 
+const isPublicCompanySearch = ({ queryTokens, organizationQueries, tagSlugs }) =>
+  tagSlugs.includes("public-company") ||
+  queryTokens.some((token) => includesAnyText(token, publicCompanyTerms)) ||
+  organizationQueries.some((query) => includesAnyText(query, publicCompanyTerms));
+
 export const computeRelevance = ({ document, queryTokens, organizationQueries, organizationAliasMap, tagSlugs, context, state }) => {
   let score = 0;
   const tagMatches = context.tags.map((tag) => tag.slug);
   const primarySource = getPrimarySource(state, document.id);
   const civilServiceSearch = isCivilServiceSearch({ queryTokens, organizationQueries, tagSlugs });
+  const publicCompanySearch = isPublicCompanySearch({ queryTokens, organizationQueries, tagSlugs });
 
   if (tagSlugs.some((slug) => tagMatches.includes(slug))) {
     score += 30;
@@ -157,6 +164,12 @@ export const computeRelevance = ({ document, queryTokens, organizationQueries, o
   }
   if (civilServiceSearch && includesAnyText(document.searchText, civilServicePenaltyTerms)) {
     score -= 25;
+  }
+  if (publicCompanySearch && tagMatches.includes("public-company")) {
+    score += 30;
+  }
+  if (publicCompanySearch && primarySource?.name.includes("JOB-ALIO")) {
+    score += 35;
   }
   return score;
 };
