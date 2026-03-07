@@ -235,6 +235,7 @@ export const upsertParsedDocument = (state, source, parsed) => {
     accessPolicy: buildAccessPolicy(source),
     isPrimary: false,
     organizationHints: parsed.organizationHints ?? [],
+    locationHints: parsed.locationHints ?? [],
     updatedAt: now(),
   });
 

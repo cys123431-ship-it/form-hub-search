@@ -119,11 +119,14 @@ export const calculateQualityScore = ({ title, content, tagCount, organizationCo
   return Math.min(Number(score.toFixed(4)), 1);
 };
 
-export const deriveReviewStatus = ({ qualityScore, tagCount, extractionStatus }) => {
+export const deriveReviewStatus = ({ qualityScore, tagCount, extractionStatus, allowTaglessApproval = false }) => {
   if (extractionStatus !== "succeeded") {
     return "pending_review";
   }
-  if (tagCount === 0 || qualityScore < 0.45) {
+  if (qualityScore < 0.45) {
+    return "pending_review";
+  }
+  if (tagCount === 0 && !allowTaglessApproval) {
     return "pending_review";
   }
   return "approved";

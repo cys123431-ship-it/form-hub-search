@@ -248,3 +248,193 @@ test("SearchService falls back to document search text when live results use dif
 
   assert.equal(payload.items.length, 1);
 });
+
+test("SearchService supports region filtering with location hints", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [{ id: "source_live", trustScore: 0.93 }],
+        organizationAliases: [],
+        tags: [{ id: "tag_recruit", slug: "recruitment", name: "채용" }],
+        documents: [
+          {
+            id: "doc_daejeon",
+            representativeTitle: "대전 치과 채용",
+            representativeSummary: "대전 지역 채용 공고",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "대전광역시 유성구 치과 채용 공고",
+          },
+          {
+            id: "doc_seoul",
+            representativeTitle: "서울 병원 채용",
+            representativeSummary: "서울 지역 채용 공고",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "서울특별시 강남구 병원 채용 공고",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_daejeon",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            pageUrl: "https://www.work24.go.kr/dj",
+            organizationHints: ["대전치과"],
+            locationHints: ["대전광역시", "대전 유성구"],
+          },
+          {
+            documentId: "doc_seoul",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            pageUrl: "https://www.work24.go.kr/seoul",
+            organizationHints: ["서울병원"],
+            locationHints: ["서울특별시", "서울 강남구"],
+          },
+        ],
+        documentTags: [
+          { documentId: "doc_daejeon", tagId: "tag_recruit" },
+          { documentId: "doc_seoul", tagId: "tag_recruit" },
+        ],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "채용",
+    organization: "",
+    region: "대전광역시",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].locations.includes("대전광역시"), true);
+});
+
+test("SearchService triggers live hydration for region-only searches", async () => {
+  let hydratedRegion = null;
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [],
+        organizationAliases: [],
+        tags: [],
+        documents: [],
+        documentOccurrences: [],
+        documentTags: [],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+  const liveRecruitmentService = {
+    async hydrate(params) {
+      hydratedRegion = params.region;
+    },
+  };
+
+  const service = new SearchService(repository, liveRecruitmentService);
+  await service.search({
+    query: "",
+    organization: "",
+    region: "대전광역시",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(hydratedRegion, "대전광역시");
+});
+
+test("SearchService keeps only municipal official documents for non-recruitment regional civic searches", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [
+          { id: "source_municipal", parserKey: "municipal_official_search", trustScore: 0.88 },
+          { id: "source_job", parserKey: "jobkorea_live_search", trustScore: 0.88 },
+        ],
+        organizationAliases: [],
+        tags: [{ id: "tag_recruit", slug: "recruitment", name: "채용" }],
+        documents: [
+          {
+            id: "doc_official",
+            representativeTitle: "서울특별시 하수도 안내",
+            representativeSummary: "서울특별시 공식 안내",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "서울특별시 하수도 안내 하수구 민원",
+          },
+          {
+            id: "doc_job",
+            representativeTitle: "하수구배관 채용",
+            representativeSummary: "민간 채용 공고",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "서울특별시 하수구 배관 채용 공고",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_official",
+            isPrimary: true,
+            sourceId: "source_municipal",
+            fileType: "html",
+            pageUrl: "https://www.seoul.go.kr/sewer",
+            locationHints: ["서울특별시"],
+          },
+          {
+            documentId: "doc_job",
+            isPrimary: true,
+            sourceId: "source_job",
+            fileType: "html",
+            pageUrl: "https://www.jobkorea.co.kr/Recruit/GI_Read/1",
+            locationHints: ["서울특별시"],
+          },
+        ],
+        documentTags: [{ documentId: "doc_job", tagId: "tag_recruit" }],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "하수구",
+    organization: "",
+    region: "서울특별시",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].title, "서울특별시 하수도 안내");
+});

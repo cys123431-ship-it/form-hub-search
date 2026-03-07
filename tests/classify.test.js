@@ -49,4 +49,13 @@ test("scoreTagRules accumulates matching weights", () => {
 test("deriveReviewStatus keeps low quality documents pending", () => {
   assert.equal(deriveReviewStatus({ qualityScore: 0.2, tagCount: 0, extractionStatus: "failed" }), "pending_review");
   assert.equal(deriveReviewStatus({ qualityScore: 0.8, tagCount: 2, extractionStatus: "succeeded" }), "approved");
+  assert.equal(
+    deriveReviewStatus({
+      qualityScore: 0.72,
+      tagCount: 0,
+      extractionStatus: "succeeded",
+      allowTaglessApproval: true,
+    }),
+    "approved",
+  );
 });

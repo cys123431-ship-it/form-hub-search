@@ -5,6 +5,36 @@ const state = {
   selectedDocumentId: null,
 };
 
+const regionSuggestions = [
+  "서울특별시",
+  "부산광역시",
+  "대구광역시",
+  "인천광역시",
+  "광주광역시",
+  "대전광역시",
+  "울산광역시",
+  "세종특별자치시",
+  "경기도",
+  "강남구",
+  "서초구",
+  "송파구",
+  "중구",
+  "영등포구",
+  "관악구",
+  "마포구",
+  "유성구",
+  "서구",
+  "동구",
+  "대덕구",
+  "해운대구",
+  "수영구",
+  "수성구",
+  "남동구",
+  "연수구",
+  "광산구",
+  "울주군",
+];
+
 const elements = {
   resultCount: document.querySelector("#result-count"),
   resultList: document.querySelector("#result-list"),
@@ -12,11 +42,13 @@ const elements = {
   detailStatus: document.querySelector("#detail-status"),
   tagList: document.querySelector("#tag-list"),
   organizationList: document.querySelector("#organization-list"),
+  regionList: document.querySelector("#region-list"),
   sourceList: document.querySelector("#source-list"),
   runList: document.querySelector("#run-list"),
   searchForm: document.querySelector("#search-form"),
   queryInput: document.querySelector("#query-input"),
   organizationInput: document.querySelector("#organization-input"),
+  regionInput: document.querySelector("#region-input"),
   tagModeInput: document.querySelector("#tag-mode-input"),
   sortInput: document.querySelector("#sort-input"),
   clearTagsButton: document.querySelector("#clear-tags-button"),
@@ -88,8 +120,24 @@ const renderOrganizations = () => {
   });
 };
 
+const renderRegions = () => {
+  clearElement(elements.regionList);
+  regionSuggestions.forEach((regionName) => {
+    const option = document.createElement("option");
+    option.value = regionName;
+    elements.regionList.append(option);
+  });
+};
+
 const resultMetaText = (item) =>
-  [item.organizations.join(", "), item.fileTypes.join(", ").toUpperCase(), item.publishedAt?.slice(0, 10)].filter(Boolean).join(" · ");
+  [
+    item.organizations.join(", "),
+    item.locations?.join(", "),
+    item.fileTypes.join(", ").toUpperCase(),
+    item.publishedAt?.slice(0, 10),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 const renderResults = (payload) => {
   elements.resultCount.textContent = `${payload.page.totalItems}건`;
@@ -131,7 +179,7 @@ const renderDetail = (document) => {
   summarySection.append(
     createElement("p", {
       className: "detail-meta",
-      text: `${document.organizations.join(", ") || "기관 없음"} · 품질 점수 ${document.qualityScore}`,
+      text: `${document.organizations.join(", ") || "기관 없음"} · ${document.locations.join(", ") || "지역 없음"} · 품질 점수 ${document.qualityScore}`,
     }),
   );
   const tagRow = createElement("div", { className: "tag-row" });
@@ -224,6 +272,9 @@ const buildSearchParams = () => {
   if (elements.organizationInput.value.trim()) {
     searchParams.set("organization", elements.organizationInput.value.trim());
   }
+  if (elements.regionInput.value.trim()) {
+    searchParams.set("region", elements.regionInput.value.trim());
+  }
   if (state.selectedTagSlugs.length > 0) {
     searchParams.set("tagSlugs", state.selectedTagSlugs.join(","));
   }
@@ -253,6 +304,7 @@ const initialize = async () => {
   state.organizations = organizations;
   renderTagList();
   renderOrganizations();
+  renderRegions();
   await runSearch();
   await renderAdmin();
 };

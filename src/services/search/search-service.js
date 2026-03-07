@@ -5,6 +5,7 @@ import {
   matchesOrganizationText,
   splitOrganizationQueries,
 } from "./search-organization.js";
+import { matchesAnyRegionQuery, matchesRegionText, splitRegionQueries } from "./search-region.js";
 
 const toPageNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -14,6 +15,21 @@ const toPageNumber = (value, fallback) => {
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
+const recruitmentIntentTerms = [
+  "채용",
+  "공고",
+  "공채",
+  "입사지원",
+  "지원서",
+  "자기소개서",
+  "자소서",
+  "원서",
+  "인턴",
+  "사원",
+  "모집",
+  "공무원",
+  "일자리",
+];
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -27,6 +43,7 @@ export const parseSearchParams = (url) => {
   return {
     query: url.searchParams.get("query") ?? "",
     organization: url.searchParams.get("organization") ?? "",
+    region: url.searchParams.get("region") ?? "",
     recruitmentKind: url.searchParams.get("recruitmentKind") ?? "",
     fileType: url.searchParams.get("fileType") ?? "",
     tagSlugs,
@@ -52,6 +69,11 @@ export const matchesTagMode = (documentTagSlugs, selectedTagSlugs, tagMode) => {
 const getPrimaryOccurrence = (state, documentId) =>
   state.documentOccurrences.find((entry) => entry.documentId === documentId && entry.isPrimary) ??
   state.documentOccurrences.find((entry) => entry.documentId === documentId);
+
+const getPrimarySourceSite = (state, documentId) => {
+  const occurrence = getPrimaryOccurrence(state, documentId);
+  return occurrence ? state.sourceSites.find((entry) => entry.id === occurrence.sourceId) ?? null : null;
+};
 
 const getPrimarySource = (state, documentId) => {
   const occurrence = getPrimaryOccurrence(state, documentId);
@@ -81,10 +103,11 @@ const getDocumentContext = (state, document) => {
     .map((name) => normalizeOrganizationName(name))
     .filter(Boolean);
   const organizations = mergeOrganizations(structuredOrganizations, fallbackOrganizations);
+  const locations = [...new Set(occurrences.flatMap((entry) => entry.locationHints ?? []).map((value) => String(value).trim()).filter(Boolean))];
   const fileTypes = [...new Set(occurrences.map((entry) => entry.fileType).filter(Boolean))];
   const recruitmentProfile = state.recruitmentProfiles.find((entry) => entry.documentId === document.id) ?? null;
 
-  return { tags, organizations, fileTypes, recruitmentProfile };
+  return { tags, organizations, locations, fileTypes, recruitmentProfile };
 };
 
 const normalizeOrganizationName = (value) => String(value ?? "").trim();
@@ -127,12 +150,38 @@ const isPublicCompanySearch = ({ queryTokens, organizationQueries, tagSlugs }) =
   queryTokens.some((token) => includesAnyText(token, publicCompanyTerms)) ||
   organizationQueries.some((query) => includesAnyText(query, publicCompanyTerms));
 
-export const computeRelevance = ({ document, queryTokens, organizationQueries, organizationAliasMap, tagSlugs, context, state }) => {
+const isRecruitmentIntent = ({ queryTokens, organizationQueries, tagSlugs }) =>
+  tagSlugs.includes("recruitment") ||
+  queryTokens.some((token) => includesAnyText(token, recruitmentIntentTerms)) ||
+  organizationQueries.length > 0;
+
+const isMunicipalGeneralSearch = ({ queryTokens, organizationQueries, regionQueries, tagSlugs }) =>
+  regionQueries.length > 0 &&
+  queryTokens.length > 0 &&
+  organizationQueries.length === 0 &&
+  !isRecruitmentIntent({ queryTokens, organizationQueries, tagSlugs });
+
+export const computeRelevance = ({
+  document,
+  queryTokens,
+  organizationQueries,
+  regionQueries = [],
+  organizationAliasMap,
+  tagSlugs,
+  context,
+  state,
+}) => {
   let score = 0;
   const tagMatches = context.tags.map((tag) => tag.slug);
   const primarySource = getPrimarySource(state, document.id);
   const civilServiceSearch = isCivilServiceSearch({ queryTokens, organizationQueries, tagSlugs });
   const publicCompanySearch = isPublicCompanySearch({ queryTokens, organizationQueries, tagSlugs });
+  const municipalGeneralSearch = isMunicipalGeneralSearch({
+    queryTokens,
+    organizationQueries,
+    regionQueries,
+    tagSlugs,
+  });
 
   if (tagSlugs.some((slug) => tagMatches.includes(slug))) {
     score += 30;
@@ -156,6 +205,9 @@ export const computeRelevance = ({ document, queryTokens, organizationQueries, o
   if (primarySource) {
     score += Math.round(primarySource.trustScore * 10);
   }
+  if (regionQueries.length > 0 && (matchesAnyRegionQuery(context.locations ?? [], regionQueries) || matchesRegionText(document.searchText, regionQueries))) {
+    score += 28;
+  }
   if (civilServiceSearch && tagMatches.includes("civil-service")) {
     score += 35;
   }
@@ -171,6 +223,12 @@ export const computeRelevance = ({ document, queryTokens, organizationQueries, o
   if (publicCompanySearch && primarySource?.name.includes("JOB-ALIO")) {
     score += 35;
   }
+  if (municipalGeneralSearch && primarySource?.name.includes("공식 사이트 검색")) {
+    score += 45;
+  }
+  if (municipalGeneralSearch && tagMatches.includes("recruitment")) {
+    score -= 25;
+  }
   return score;
 };
 
@@ -180,6 +238,7 @@ const buildSearchItem = (state, document, context) => ({
   summary: document.representativeSummary,
   tags: context.tags.map((tag) => tag.name),
   organizations: context.organizations.map((organization) => organization.name),
+  locations: context.locations,
   publishedAt: document.publishedAt,
   fileTypes: context.fileTypes,
   previewAvailable: Boolean(document.representativeSummary),
@@ -216,7 +275,10 @@ export class SearchService {
   }
 
   async search(params) {
-    if (this.liveRecruitmentService && (params.query.trim() || params.organization.trim())) {
+    if (
+      this.liveRecruitmentService &&
+      (String(params.query ?? "").trim() || String(params.organization ?? "").trim() || String(params.region ?? "").trim())
+    ) {
       try {
         await this.liveRecruitmentService.hydrate(params);
       } catch {
@@ -227,17 +289,32 @@ export class SearchService {
     const state = await this.repository.readState();
     const queryTokens = splitQueryTokens(params.query);
     const organizationQueries = splitOrganizationQueries(params.organization);
+    const regionQueries = splitRegionQueries(params.region);
     const organizationAliasMap = buildOrganizationAliasMap(state);
+    const municipalGeneralSearch = isMunicipalGeneralSearch({
+      queryTokens,
+      organizationQueries,
+      regionQueries,
+      tagSlugs: params.tagSlugs,
+    });
 
     const matchedDocuments = state.documents
       .filter((document) => document.visibilityStatus === "active" && document.reviewStatus === "approved")
       .map((document) => ({ document, context: getDocumentContext(state, document) }))
+      .filter(({ document }) =>
+        municipalGeneralSearch ? getPrimarySourceSite(state, document.id)?.parserKey === "municipal_official_search" : true,
+      )
       .filter(({ document, context }) => matchesTagMode(context.tags.map((tag) => tag.slug), params.tagSlugs, params.tagMode))
       .filter(({ document, context }) =>
         organizationQueries.length > 0
           ? context.organizations.some((organization) =>
               matchesAnyOrganizationQuery(organization, organizationQueries, organizationAliasMap),
             ) || matchesOrganizationText(document.searchText, organizationQueries)
+          : true,
+      )
+      .filter(({ document, context }) =>
+        regionQueries.length > 0
+          ? matchesAnyRegionQuery(context.locations ?? [], regionQueries) || matchesRegionText(document.searchText, regionQueries)
           : true,
       )
       .filter(({ context }) => (params.fileType ? context.fileTypes.includes(params.fileType) : true))
@@ -254,6 +331,7 @@ export class SearchService {
           document,
           queryTokens,
           organizationQueries,
+          regionQueries,
           organizationAliasMap,
           tagSlugs: params.tagSlugs,
           context,
@@ -324,6 +402,7 @@ export class SearchService {
       summary: document.representativeSummary,
       tags: context.tags.map((tag) => ({ slug: tag.slug, name: tag.name })),
       organizations: context.organizations.map((organization) => organization.name),
+      locations: context.locations,
       reviewStatus: document.reviewStatus,
       qualityScore: document.qualityScore,
       publishedAt: document.publishedAt,

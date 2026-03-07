@@ -69,6 +69,38 @@
       "policyNote": "사용자 검색어 기준으로 공개 채용 공고를 실시간 조회"
     },
     {
+      "id": "source_municipal_official_search",
+      "name": "특별시·광역시 및 자치구 공식 사이트 검색",
+      "baseUrl": "https://html.duckduckgo.com/html/",
+      "sourceType": "live_search",
+      "parserKey": "municipal_official_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.88,
+      "crawlIntervalMinutes": 30,
+      "requestTimeoutMs": 8000,
+      "policyNote": "공식 지자체 도메인 결과만 남기는 통합 검색 레이어"
+    },
+    {
+      "id": "source_work24_live",
+      "name": "고용24 공식 채용 검색",
+      "baseUrl": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do",
+      "sourceType": "live_search",
+      "parserKey": "work24_live_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.93,
+      "crawlIntervalMinutes": 30,
+      "requestTimeoutMs": 8000,
+      "policyNote": "고용24 공식 공개 채용 검색 결과를 실시간 조회"
+    },
+    {
       "id": "source_gojobs_live",
       "name": "나라일터 공무원 채용 목록",
       "baseUrl": "https://www.gojobs.go.kr/apmList.do",
@@ -99,6 +131,38 @@
       "crawlIntervalMinutes": 30,
       "requestTimeoutMs": 8000,
       "policyNote": "JOB-ALIO 공공기관 채용정보를 실시간 조회"
+    },
+    {
+      "id": "source_daejeon_job_event_live",
+      "name": "대전광역시 공식 채용행사",
+      "baseUrl": "https://www.daejeon.go.kr/drh/jobBlogList.do?boardId=jobblog01&menuSeq=7650",
+      "sourceType": "live_search",
+      "parserKey": "daejeon_job_event_live_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.95,
+      "crawlIntervalMinutes": 60,
+      "requestTimeoutMs": 8000,
+      "policyNote": "대전광역시청 채용행사 게시판을 실시간 조회"
+    },
+    {
+      "id": "source_daejeon_gosi_live",
+      "name": "대전광역시 공식 고시공고",
+      "baseUrl": "https://www.daejeon.go.kr/drh/drhGosiList.do?menuSeq=1908&gosigbn=A",
+      "sourceType": "live_search",
+      "parserKey": "daejeon_gosi_live_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.96,
+      "crawlIntervalMinutes": 60,
+      "requestTimeoutMs": 8000,
+      "policyNote": "대전광역시청 공식 고시공고를 실시간 조회"
     }
   ],
   "tags": [

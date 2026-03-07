@@ -156,6 +156,7 @@ export class ClassificationService {
       organizationCount: organizations.length,
       extractionStatus,
     });
+    const primarySource = state.sourceSites.find((source) => source.id === primaryOccurrence?.sourceId) ?? null;
     const searchText = [
       primaryOccurrence?.sourceTitle ?? "",
       summary,
@@ -174,6 +175,7 @@ export class ClassificationService {
       qualityScore,
       tagCount: sortedTagIds.length,
       extractionStatus,
+      allowTaglessApproval: primarySource?.parserKey === "municipal_official_search" && qualityScore >= 0.55,
     });
     document.qualityScore = qualityScore;
     document.sourceCount = occurrences.length;

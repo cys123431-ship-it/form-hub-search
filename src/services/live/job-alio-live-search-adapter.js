@@ -59,6 +59,7 @@ const createListItem = ({
     createSearchIntentText(queryText),
   ].join(". "),
   organizationHints: [toText(organizationName)],
+  locationHints: [toText(location)],
   publishedAt: normalizeDate(registeredAt),
   assets: [],
   matchText: [organizationName, title, location, employmentType].map((value) => toText(value)).join(" "),
@@ -132,6 +133,7 @@ const enrichWithDetail = (item, html, queryText) => {
       .filter(Boolean)
       .join(". "),
     organizationHints: [organizationName],
+    locationHints: [item.previewHint?.location ?? ""],
     publishedAt: item.publishedAt,
     assets: attachments,
     matchText: [organizationName, title, detailText].join(" "),

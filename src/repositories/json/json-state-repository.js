@@ -1,6 +1,23 @@
 import fs from "node:fs/promises";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const createEmptyState = () => ({
+  meta: { schemaVersion: 1 },
+  sourceSites: [],
+  crawlRuns: [],
+  crawlRunItems: [],
+  organizations: [],
+  organizationAliases: [],
+  tags: [],
+  tagKeywordRules: [],
+  documents: [],
+  documentOccurrences: [],
+  documentContents: [],
+  documentAssets: [],
+  documentTags: [],
+  documentOrganizations: [],
+  recruitmentProfiles: [],
+});
 
 export class JsonStateRepository {
   constructor(stateFilePath) {
@@ -11,35 +28,29 @@ export class JsonStateRepository {
     try {
       await fs.access(this.stateFilePath);
     } catch {
-      const emptyState = {
-        meta: { schemaVersion: 1 },
-        sourceSites: [],
-        crawlRuns: [],
-        crawlRunItems: [],
-        organizations: [],
-        organizationAliases: [],
-        tags: [],
-        tagKeywordRules: [],
-        documents: [],
-        documentOccurrences: [],
-        documentContents: [],
-        documentAssets: [],
-        documentTags: [],
-        documentOrganizations: [],
-        recruitmentProfiles: [],
-      };
-      await this.writeState(emptyState);
+      await this.writeState(createEmptyState());
     }
   }
 
   async readState() {
     await this.ensureStateFile();
     const rawText = await fs.readFile(this.stateFilePath, "utf8");
-    return JSON.parse(rawText);
+
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      const corruptBackupPath = `${this.stateFilePath}.corrupt-${Date.now()}`;
+      await fs.rename(this.stateFilePath, corruptBackupPath).catch(() => {});
+      const emptyState = createEmptyState();
+      await this.writeState(emptyState);
+      return emptyState;
+    }
   }
 
   async writeState(state) {
-    await fs.writeFile(this.stateFilePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    const tempPath = `${this.stateFilePath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tempPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    await fs.rename(tempPath, this.stateFilePath);
     return clone(state);
   }
 
