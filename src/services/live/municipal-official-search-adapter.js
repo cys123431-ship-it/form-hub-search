@@ -7,9 +7,15 @@ import {
 } from "../search/search-region.js";
 import { decodeHtml, selectRankedResults, toText } from "./live-search-utils.js";
 
-const searchBaseUrl = "https://html.duckduckgo.com/html/";
-const resultPattern =
+const searchProviders = [
+  { kind: "html", baseUrl: "https://html.duckduckgo.com/html/" },
+  { kind: "html", baseUrl: "https://duckduckgo.com/html/" },
+  { kind: "lite", baseUrl: "https://lite.duckduckgo.com/lite/" },
+];
+const htmlResultPattern =
   /<h2 class="result__title">\s*<a[^>]*class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/h2>[\s\S]*?<a class="result__url" href="[^"]+">([\s\S]*?)<\/a>(?:[\s\S]*?<a class="result__snippet" href="[^"]+">([\s\S]*?)<\/a>)?/giu;
+const liteResultPattern =
+  /<a rel="nofollow" href="([^"]+)" class='result-link'>([\s\S]*?)<\/a>(?:[\s\S]*?<td class='result-snippet'>\s*([\s\S]*?)\s*<\/td>)?[\s\S]*?<span class='link-text'>([\s\S]*?)<\/span>/giu;
 const excludedNationalHosts = [
   "data.go.kr",
   "www.data.go.kr",
@@ -35,7 +41,7 @@ const decodeDdgUrl = (href) => {
 
   try {
     const absoluteUrl = decodedHref.startsWith("//") ? `https:${decodedHref}` : decodedHref;
-    const redirectUrl = new URL(absoluteUrl, searchBaseUrl);
+    const redirectUrl = new URL(absoluteUrl, searchProviders[0].baseUrl);
     const targetUrl = redirectUrl.searchParams.get("uddg");
     return normalizeUrl(targetUrl ? decodeURIComponent(targetUrl) : redirectUrl.toString());
   } catch {
@@ -99,19 +105,19 @@ const matchesProfile = (text, profile) => {
   return collectMunicipalSearchTerms(profile).some((term) => textKey.includes(compactSearchText(term)));
 };
 
-const parseResults = (html, profile, queryText) => {
+const parseResultsFromPattern = (html, pattern, profile, queryText, fieldOrder = "html") => {
   const items = [];
   const seen = new Set();
 
-  for (const match of html.matchAll(resultPattern)) {
+  for (const match of html.matchAll(pattern)) {
+    const title = toText(fieldOrder === "html" ? match[2] : match[2]);
+    const displayUrl = toText(fieldOrder === "html" ? match[3] : match[4]);
+    const snippet = toText(fieldOrder === "html" ? match[4] ?? "" : match[3] ?? "");
     const resultUrl = decodeDdgUrl(match[1]);
     if (!resultUrl || seen.has(resultUrl) || !isOfficialMunicipalUrl(resultUrl, profile)) {
       continue;
     }
 
-    const title = toText(match[2]);
-    const displayUrl = toText(match[3]);
-    const snippet = toText(match[4] ?? "");
     const searchableText = buildResultText(title, snippet, displayUrl, resultUrl);
     if (!matchesProfile(searchableText, profile)) {
       continue;
@@ -147,6 +153,11 @@ const parseResults = (html, profile, queryText) => {
   return items;
 };
 
+const parseProviderResults = (html, providerKind, profile, queryText) =>
+  providerKind === "lite"
+    ? parseResultsFromPattern(html, liteResultPattern, profile, queryText, "lite")
+    : parseResultsFromPattern(html, htmlResultPattern, profile, queryText, "html");
+
 export class MunicipalOfficialSearchAdapter {
   constructor({ timeoutMs = 8000 } = {}) {
     this.timeoutMs = timeoutMs;
@@ -170,12 +181,18 @@ export class MunicipalOfficialSearchAdapter {
     for (const profile of profiles) {
       const queries = buildSearchQueries(trimmedQuery, profile);
       for (const searchQuery of queries) {
-        try {
-          const requestUrl = `${searchBaseUrl}?q=${encodeURIComponent(searchQuery)}`;
-          const html = await fetchTextWithTimeout(requestUrl, this.timeoutMs);
-          parsedItems.push(...parseResults(html, profile, trimmedQuery));
-        } catch {
-          // Ignore individual query failures and keep remaining sources usable.
+        for (const provider of searchProviders) {
+          try {
+            const requestUrl = `${provider.baseUrl}?q=${encodeURIComponent(searchQuery)}`;
+            const html = await fetchTextWithTimeout(requestUrl, this.timeoutMs);
+            const providerResults = parseProviderResults(html, provider.kind, profile, trimmedQuery);
+            if (providerResults.length > 0) {
+              parsedItems.push(...providerResults);
+              break;
+            }
+          } catch {
+            // Ignore provider-specific failures and try the next fallback.
+          }
         }
       }
     }
