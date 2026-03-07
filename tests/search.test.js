@@ -143,3 +143,56 @@ test("SearchService supports comma-separated organization filters", async () => 
 
   assert.equal(payload.items.length, 2);
 });
+
+test("SearchService falls back to occurrence organization hints for unknown companies", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [{ id: "source_live", trustScore: 0.88 }],
+        organizationAliases: [],
+        tags: [{ id: "tag_recruit", slug: "recruitment", name: "채용" }],
+        documents: [
+          {
+            id: "doc_samsung",
+            representativeTitle: "삼성전자 채용 - DX 부문 신입 모집",
+            representativeSummary: "삼성전자 채용 공고",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "삼성전자 채용 공고 입사지원 자기소개서 자소서",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_samsung",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            pageUrl: "https://www.jobkorea.co.kr/Recruit/GI_Read/12345678",
+            organizationHints: ["삼성전자"],
+          },
+        ],
+        documentTags: [{ documentId: "doc_samsung", tagId: "tag_recruit" }],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "자소서",
+    organization: "삼성전자",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].organizations[0], "삼성전자");
+});

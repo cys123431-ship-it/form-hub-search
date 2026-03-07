@@ -35,6 +35,22 @@
       "crawlIntervalMinutes": 360,
       "requestTimeoutMs": 5000,
       "policyNote": "로컬 샘플 채용 데이터"
+    },
+    {
+      "id": "source_jobkorea_live",
+      "name": "잡코리아 라이브 채용 검색",
+      "baseUrl": "https://www.jobkorea.co.kr/Search/",
+      "sourceType": "live_search",
+      "parserKey": "jobkorea_live_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.88,
+      "crawlIntervalMinutes": 30,
+      "requestTimeoutMs": 8000,
+      "policyNote": "사용자 검색어 기준으로 공개 채용 공고를 실시간 조회"
     }
   ],
   "tags": [

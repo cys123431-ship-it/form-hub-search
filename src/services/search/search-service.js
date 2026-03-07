@@ -1,4 +1,9 @@
 import { compactSearchText, hasAllTokens, splitQueryTokens } from "../../utils/normalize.js";
+import {
+  buildOrganizationAliasMap,
+  matchesAnyOrganizationQuery,
+  splitOrganizationQueries,
+} from "./search-organization.js";
 
 const toPageNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -27,12 +32,6 @@ export const parseSearchParams = (url) => {
   };
 };
 
-const splitOrganizationQueries = (value) =>
-  String(value ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
 export const matchesTagMode = (documentTagSlugs, selectedTagSlugs, tagMode) => {
   if (selectedTagSlugs.length === 0) {
     return true;
@@ -49,30 +48,6 @@ const getPrimaryOccurrence = (state, documentId) =>
   state.documentOccurrences.find((entry) => entry.documentId === documentId && entry.isPrimary) ??
   state.documentOccurrences.find((entry) => entry.documentId === documentId);
 
-const buildOrganizationAliasMap = (state) =>
-  state.organizationAliases.reduce((aliasMap, alias) => {
-    const bucket = aliasMap.get(alias.organizationId) ?? [];
-    bucket.push(alias.normalizedAlias);
-    aliasMap.set(alias.organizationId, bucket);
-    return aliasMap;
-  }, new Map());
-
-const matchesOrganizationQuery = (organization, organizationQuery, aliasMap) => {
-  const normalizedQuery = compactSearchText(organizationQuery);
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  if (compactSearchText(organization.name).includes(normalizedQuery)) {
-    return true;
-  }
-
-  return (aliasMap.get(organization.id) ?? []).some((alias) => alias.includes(normalizedQuery));
-};
-
-const matchesAnyOrganizationQuery = (organization, organizationQueries, aliasMap) =>
-  organizationQueries.some((organizationQuery) => matchesOrganizationQuery(organization, organizationQuery, aliasMap));
-
 const getPrimarySource = (state, documentId) => {
   const occurrence = getPrimaryOccurrence(state, documentId);
   if (!occurrence) {
@@ -88,18 +63,48 @@ const getPrimarySource = (state, documentId) => {
 };
 
 const getDocumentContext = (state, document) => {
+  const occurrences = state.documentOccurrences.filter((entry) => entry.documentId === document.id);
   const documentTags = state.documentTags.filter((entry) => entry.documentId === document.id);
   const documentTagIds = new Set(documentTags.map((entry) => entry.tagId));
   const tags = state.tags.filter((tag) => documentTagIds.has(tag.id));
-  const organizations = state.documentOrganizations
+  const structuredOrganizations = state.documentOrganizations
     .filter((entry) => entry.documentId === document.id)
     .map((entry) => state.organizations.find((organization) => organization.id === entry.organizationId))
     .filter(Boolean);
-  const occurrences = state.documentOccurrences.filter((entry) => entry.documentId === document.id);
+  const fallbackOrganizations = occurrences
+    .flatMap((entry) => entry.organizationHints ?? [])
+    .map((name) => normalizeOrganizationName(name))
+    .filter(Boolean);
+  const organizations = mergeOrganizations(structuredOrganizations, fallbackOrganizations);
   const fileTypes = [...new Set(occurrences.map((entry) => entry.fileType).filter(Boolean))];
   const recruitmentProfile = state.recruitmentProfiles.find((entry) => entry.documentId === document.id) ?? null;
 
   return { tags, organizations, fileTypes, recruitmentProfile };
+};
+
+const normalizeOrganizationName = (value) => String(value ?? "").trim();
+
+const mergeOrganizations = (structuredOrganizations, fallbackNames) => {
+  const merged = new Map();
+
+  structuredOrganizations.forEach((organization) => {
+    merged.set(compactSearchText(organization.name), organization);
+  });
+
+  fallbackNames.forEach((name) => {
+    const normalizedName = compactSearchText(name);
+    if (!normalizedName || merged.has(normalizedName)) {
+      return;
+    }
+
+    merged.set(normalizedName, {
+      id: `external:${normalizedName}`,
+      name,
+      organizationType: "external",
+    });
+  });
+
+  return [...merged.values()];
 };
 
 export const computeRelevance = ({ document, queryTokens, organizationQueries, organizationAliasMap, tagSlugs, context, state }) => {
@@ -166,11 +171,20 @@ const buildFacets = (items, documents) => {
 };
 
 export class SearchService {
-  constructor(repository) {
+  constructor(repository, liveRecruitmentService = null) {
     this.repository = repository;
+    this.liveRecruitmentService = liveRecruitmentService;
   }
 
   async search(params) {
+    if (this.liveRecruitmentService && (params.query.trim() || params.organization.trim())) {
+      try {
+        await this.liveRecruitmentService.hydrate(params);
+      } catch {
+        // Live lookup should not block local catalog search.
+      }
+    }
+
     const state = await this.repository.readState();
     const queryTokens = splitQueryTokens(params.query);
     const organizationQueries = splitOrganizationQueries(params.organization);
