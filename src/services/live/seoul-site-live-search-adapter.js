@@ -42,7 +42,11 @@ const buildQueryText = (queryText, region) => {
     return "";
   }
 
-  return unique([trimmedQuery, resolvedRegion.matchedLabel, resolvedRegion.canonical]).join(" ");
+  if (resolvedRegion.matchedType === "district" && !trimmedQuery.includes(resolvedRegion.matchedLabel)) {
+    return unique([trimmedQuery, resolvedRegion.matchedLabel]).join(" ");
+  }
+
+  return trimmedQuery;
 };
 
 const isAllowedSeoulHost = (url) => {
@@ -98,7 +102,6 @@ const extractItems = (html, queryText, region) => {
       bodyText: [
         title,
         "서울특별시 통합검색 공식 결과",
-        `검색어 ${queryText}`,
         "서울시와 서울시 산하 공식 사이트 결과만 선별한 문서입니다.",
         pageUrl,
       ].join(". "),
@@ -140,7 +143,6 @@ const extractMarkdownItems = (markdown, queryText, region) => {
       bodyText: [
         title,
         "서울특별시 통합검색 공식 결과",
-        `검색어 ${queryText}`,
         "서울시와 서울시 산하 공식 사이트 결과만 선별한 문서입니다.",
         pageUrl,
       ].join(". "),
@@ -168,16 +170,16 @@ export class SeoulSiteLiveSearchAdapter {
 
     let items = [];
     try {
-      const html = await fetchTextWithTimeout(`${searchUrl}?kwd=${encodeURIComponent(searchQuery)}`, this.timeoutMs);
-      items = extractItems(html, searchQuery, region);
-    } catch {
-      // Fall through to the markdown proxy.
-    }
-
-    if (items.length === 0) {
       const proxyUrl = `https://r.jina.ai/http://newsearch.seoul.go.kr/ksearch/search.do?kwd=${encodeURIComponent(searchQuery)}`;
       const markdown = await fetchTextWithTimeout(proxyUrl, this.timeoutMs);
       items = extractMarkdownItems(markdown, searchQuery, region);
+    } catch {
+      // Fall through to the direct HTML fetch.
+    }
+
+    if (items.length === 0) {
+      const html = await fetchTextWithTimeout(`${searchUrl}?kwd=${encodeURIComponent(searchQuery)}`, this.timeoutMs);
+      items = extractItems(html, searchQuery, region);
     }
 
     return selectRankedResults(items, queryText, { limit, requireQueryMatch });
