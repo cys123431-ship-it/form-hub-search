@@ -13,6 +13,7 @@ import { JobKoreaLiveSearchAdapter } from "./services/live/jobkorea-live-search-
 import { LiveRecruitmentService } from "./services/live/live-recruitment-service.js";
 import { MunicipalOfficialSearchAdapter } from "./services/live/municipal-official-search-adapter.js";
 import { SaraminLiveSearchAdapter } from "./services/live/saramin-live-search-adapter.js";
+import { SeoulSiteLiveSearchAdapter } from "./services/live/seoul-site-live-search-adapter.js";
 import { SearchService } from "./services/search/search-service.js";
 import { Work24LiveSearchAdapter } from "./services/live/work24-live-search-adapter.js";
 
@@ -33,6 +34,7 @@ export const createAppContext = async () => {
     ["jobkorea_live_search", new JobKoreaLiveSearchAdapter()],
     ["saramin_live_search", new SaraminLiveSearchAdapter()],
     ["municipal_official_search", new MunicipalOfficialSearchAdapter()],
+    ["seoul_official_search", new SeoulSiteLiveSearchAdapter()],
     ["work24_live_search", new Work24LiveSearchAdapter()],
     ["gojobs_live_search", new GojobsLiveSearchAdapter()],
     ["job_alio_live_search", new JobAlioLiveSearchAdapter()],

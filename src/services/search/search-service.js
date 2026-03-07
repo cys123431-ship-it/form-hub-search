@@ -15,6 +15,7 @@ const toPageNumber = (value, fallback) => {
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
+const municipalGeneralSourceParsers = new Set(["municipal_official_search", "seoul_official_search"]);
 const recruitmentIntentTerms = [
   "채용",
   "공고",
@@ -226,6 +227,9 @@ export const computeRelevance = ({
   if (municipalGeneralSearch && primarySource?.name.includes("공식 사이트 검색")) {
     score += 45;
   }
+  if (municipalGeneralSearch && primarySource?.name.includes("서울특별시 통합검색")) {
+    score += 45;
+  }
   if (municipalGeneralSearch && tagMatches.includes("recruitment")) {
     score -= 25;
   }
@@ -302,7 +306,7 @@ export class SearchService {
       .filter((document) => document.visibilityStatus === "active" && document.reviewStatus === "approved")
       .map((document) => ({ document, context: getDocumentContext(state, document) }))
       .filter(({ document }) =>
-        municipalGeneralSearch ? getPrimarySourceSite(state, document.id)?.parserKey === "municipal_official_search" : true,
+        municipalGeneralSearch ? municipalGeneralSourceParsers.has(getPrimarySourceSite(state, document.id)?.parserKey) : true,
       )
       .filter(({ document, context }) => matchesTagMode(context.tags.map((tag) => tag.slug), params.tagSlugs, params.tagMode))
       .filter(({ document, context }) =>

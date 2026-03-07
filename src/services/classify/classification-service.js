@@ -175,7 +175,8 @@ export class ClassificationService {
       qualityScore,
       tagCount: sortedTagIds.length,
       extractionStatus,
-      allowTaglessApproval: primarySource?.parserKey === "municipal_official_search" && qualityScore >= 0.55,
+      allowTaglessApproval:
+        ["municipal_official_search", "seoul_official_search"].includes(primarySource?.parserKey) && qualityScore >= 0.55,
     });
     document.qualityScore = qualityScore;
     document.sourceCount = occurrences.length;

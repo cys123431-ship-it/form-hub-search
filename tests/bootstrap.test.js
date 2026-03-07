@@ -43,6 +43,7 @@ test("seedCatalogIfNeeded merges missing catalog entries into an existing state 
 
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_jobkorea_live"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_municipal_official_search"), true);
+  assert.equal(seeded.sourceSites.some((source) => source.id === "source_seoul_official_search"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_work24_live"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_job_alio_live"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_daejeon_gosi_live"), true);

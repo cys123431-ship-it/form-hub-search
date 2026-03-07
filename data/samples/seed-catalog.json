@@ -85,6 +85,22 @@
       "policyNote": "공식 지자체 도메인 결과만 남기는 통합 검색 레이어"
     },
     {
+      "id": "source_seoul_official_search",
+      "name": "서울특별시 통합검색",
+      "baseUrl": "https://newsearch.seoul.go.kr/ksearch/search.do",
+      "sourceType": "live_search",
+      "parserKey": "seoul_official_search",
+      "parserConfig": {},
+      "status": "active",
+      "allowCrawl": false,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.95,
+      "crawlIntervalMinutes": 30,
+      "requestTimeoutMs": 8000,
+      "policyNote": "서울특별시 통합검색 공식 결과를 실시간 조회"
+    },
+    {
       "id": "source_work24_live",
       "name": "고용24 공식 채용 검색",
       "baseUrl": "https://www.work24.go.kr/wk/a/b/1200/retriveDtlEmpSrchList.do",

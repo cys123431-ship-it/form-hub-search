@@ -24,11 +24,13 @@ const recruitmentTerms = [
   "공공일자리",
 ];
 const daejeonParsers = new Set(["daejeon_job_event_live_search", "daejeon_gosi_live_search"]);
+const municipalParsers = new Set(["municipal_official_search", "seoul_official_search"]);
 const regionAwareParsers = new Set([
   "work24_live_search",
   "daejeon_job_event_live_search",
   "daejeon_gosi_live_search",
   "municipal_official_search",
+  "seoul_official_search",
 ]);
 
 const isCivilServiceRequest = (params) =>
@@ -143,6 +145,16 @@ const resolveSourceQueries = (source, params) => {
     return String(params.query ?? "").trim() ? [String(params.query ?? "").trim()] : [];
   }
 
+  if (source.parserKey === "seoul_official_search") {
+    const region = resolveNamedRegion(params.region);
+    const mentionsSeoul = [params.query, params.organization].some((value) => String(value ?? "").includes("서울"));
+    if (region && region.canonical !== "서울특별시" && !mentionsSeoul) {
+      return [];
+    }
+
+    return String(params.query ?? "").trim() ? [String(params.query ?? "").trim()] : [];
+  }
+
   if (source.parserKey === "work24_live_search") {
     return buildWork24Queries(params);
   }
@@ -184,7 +196,7 @@ export class LiveRecruitmentService {
         return false;
       }
 
-      if (source.parserKey === "municipal_official_search") {
+      if (municipalParsers.has(source.parserKey)) {
         return municipalOfficialSearchRequest;
       }
 
