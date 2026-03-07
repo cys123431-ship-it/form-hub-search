@@ -196,3 +196,55 @@ test("SearchService falls back to occurrence organization hints for unknown comp
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0].organizations[0], "삼성전자");
 });
+
+test("SearchService falls back to document search text when live results use different company names", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [{ id: "source_live", trustScore: 0.88 }],
+        organizationAliases: [],
+        tags: [{ id: "tag_recruit", slug: "recruitment", name: "채용" }],
+        documents: [
+          {
+            id: "doc_lg_related",
+            representativeTitle: "비콤시스템 채용 - 전기 제어장치 시스템 프로그램",
+            representativeSummary: "LG전자 관련 검색 결과",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "비콤시스템 LG전자 자소서 채용 공고",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_lg_related",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            pageUrl: "https://www.jobkorea.co.kr/Recruit/GI_Read/48711738",
+            organizationHints: ["비콤시스템"],
+          },
+        ],
+        documentTags: [{ documentId: "doc_lg_related", tagId: "tag_recruit" }],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "자소서",
+    organization: "LG전자",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+});

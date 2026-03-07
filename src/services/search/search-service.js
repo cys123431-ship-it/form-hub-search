@@ -2,6 +2,7 @@ import { compactSearchText, hasAllTokens, splitQueryTokens } from "../../utils/n
 import {
   buildOrganizationAliasMap,
   matchesAnyOrganizationQuery,
+  matchesOrganizationText,
   splitOrganizationQueries,
 } from "./search-organization.js";
 
@@ -9,6 +10,9 @@ const toPageNumber = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
+const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -107,10 +111,21 @@ const mergeOrganizations = (structuredOrganizations, fallbackNames) => {
   return [...merged.values()];
 };
 
+const includesAnyText = (text, patterns) => {
+  const normalized = compactSearchText(text);
+  return patterns.some((pattern) => normalized.includes(compactSearchText(pattern)));
+};
+
+const isCivilServiceSearch = ({ queryTokens, organizationQueries, tagSlugs }) =>
+  tagSlugs.includes("civil-service") ||
+  queryTokens.some((token) => includesAnyText(token, civilServiceTerms)) ||
+  organizationQueries.some((query) => includesAnyText(query, civilServiceTerms));
+
 export const computeRelevance = ({ document, queryTokens, organizationQueries, organizationAliasMap, tagSlugs, context, state }) => {
   let score = 0;
   const tagMatches = context.tags.map((tag) => tag.slug);
   const primarySource = getPrimarySource(state, document.id);
+  const civilServiceSearch = isCivilServiceSearch({ queryTokens, organizationQueries, tagSlugs });
 
   if (tagSlugs.some((slug) => tagMatches.includes(slug))) {
     score += 30;
@@ -128,9 +143,20 @@ export const computeRelevance = ({ document, queryTokens, organizationQueries, o
     )
   ) {
     score += 50;
+  } else if (organizationQueries.length > 0 && matchesOrganizationText(document.searchText, organizationQueries)) {
+    score += 25;
   }
   if (primarySource) {
     score += Math.round(primarySource.trustScore * 10);
+  }
+  if (civilServiceSearch && tagMatches.includes("civil-service")) {
+    score += 35;
+  }
+  if (civilServiceSearch && primarySource?.name.includes("나라일터")) {
+    score += 40;
+  }
+  if (civilServiceSearch && includesAnyText(document.searchText, civilServicePenaltyTerms)) {
+    score -= 25;
   }
   return score;
 };
@@ -194,11 +220,11 @@ export class SearchService {
       .filter((document) => document.visibilityStatus === "active" && document.reviewStatus === "approved")
       .map((document) => ({ document, context: getDocumentContext(state, document) }))
       .filter(({ document, context }) => matchesTagMode(context.tags.map((tag) => tag.slug), params.tagSlugs, params.tagMode))
-      .filter(({ context }) =>
+      .filter(({ document, context }) =>
         organizationQueries.length > 0
           ? context.organizations.some((organization) =>
               matchesAnyOrganizationQuery(organization, organizationQueries, organizationAliasMap),
-            )
+            ) || matchesOrganizationText(document.searchText, organizationQueries)
           : true,
       )
       .filter(({ context }) => (params.fileType ? context.fileTypes.includes(params.fileType) : true))

@@ -77,7 +77,14 @@ export const deriveRecruitmentProfile = ({ title, content, tagSlugs, organizatio
 
   const seasonMatch = `${title} ${content}`.match(/(20\d{2})\s*(상반기|하반기|상시)/);
   let recruitmentKind = "open_recruitment";
-  if (combined.includes("인턴")) {
+  if (
+    combined.includes("공무원") ||
+    combined.includes("군무원") ||
+    combined.includes("임기제") ||
+    combined.includes("한시임기제")
+  ) {
+    recruitmentKind = "civil_service";
+  } else if (combined.includes("인턴")) {
     recruitmentKind = "intern";
   } else if (combined.includes("경력")) {
     recruitmentKind = "experienced";

@@ -7,23 +7,24 @@ import {
   toText,
 } from "./live-search-utils.js";
 
-const baseUrl = "https://www.jobkorea.co.kr";
-const baseSearchUrl = `${baseUrl}/Search/?stext=`;
-const cardPattern =
-  /<div[^>]+data-sentry-component="CardJob"[\s\S]*?<a href="(https:\/\/www\.jobkorea\.co\.kr\/Recruit\/GI_Read\/\d+[^"]*)"[^>]*style="max-width:700px"[\s\S]*?<span[^>]*>([\s\S]*?)<\/span><\/a>[\s\S]*?<a href="https:\/\/www\.jobkorea\.co\.kr\/Recruit\/GI_Read\/\d+[^"]*"[\s\S]*?styles_mb_space20[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/giu;
+const baseUrl = "https://www.saramin.co.kr";
+const baseSearchUrl = `${baseUrl}/zf_user/search?searchword=`;
+const listItemPattern = /<li>[\s\S]*?<span class="corp_name">[\s\S]*?title="([^"]+)"[\s\S]*?<h2 class="job_tit">[\s\S]*?<a[^>]*title="([^"]+)"[\s\S]*?href="([^"]*rec_idx=\d+[^"]*)"[\s\S]*?<\/li>/giu;
 
-const buildItemKey = (pageUrl) => pageUrl.match(/GI_Read\/(\d+)/u)?.[1] ?? pageUrl.split("/").at(-1);
+const buildItemKey = (pageUrl) => {
+  const matched = pageUrl.match(/rec_idx=(\d+)/u);
+  return matched?.[1] ?? pageUrl.split("rec_idx=").at(-1) ?? pageUrl;
+};
 
 const createParsedPosting = ({ pageUrl, companyName, title, queryText }) => {
   const normalizedCompany = toText(companyName);
   const normalizedTitle = toText(title);
-  const sourceTitle = `${normalizedCompany} 채용 - ${normalizedTitle}`;
 
   return {
     sourceItemKey: buildItemKey(pageUrl),
     pageUrl,
     canonicalUrl: pageUrl,
-    sourceTitle,
+    sourceTitle: `${normalizedCompany} 채용 - ${normalizedTitle}`,
     bodyText: [normalizedCompany, normalizedTitle, createSearchIntentText(queryText)].join(". "),
     organizationHints: [normalizedCompany],
     publishedAt: null,
@@ -36,27 +37,22 @@ const extractCards = (html, queryText) => {
   const items = [];
   const seen = new Set();
 
-  for (const match of html.matchAll(cardPattern)) {
-    const pageUrl = toAbsoluteUrl(baseUrl, decodeHtml(match[1]).split("?")[0]);
+  for (const match of html.matchAll(listItemPattern)) {
+    const companyName = decodeHtml(match[1]);
+    const title = decodeHtml(match[2]);
+    const pageUrl = toAbsoluteUrl(baseUrl, match[3]);
     if (!pageUrl || seen.has(pageUrl)) {
       continue;
     }
 
     seen.add(pageUrl);
-    items.push(
-      createParsedPosting({
-        pageUrl,
-        title: match[2],
-        companyName: match[3],
-        queryText,
-      }),
-    );
+    items.push(createParsedPosting({ pageUrl, companyName, title, queryText }));
   }
 
   return items;
 };
 
-export class JobKoreaLiveSearchAdapter {
+export class SaraminLiveSearchAdapter {
   constructor({ timeoutMs = 8000 } = {}) {
     this.timeoutMs = timeoutMs;
   }
