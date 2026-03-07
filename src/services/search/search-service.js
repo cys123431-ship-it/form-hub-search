@@ -27,6 +27,12 @@ export const parseSearchParams = (url) => {
   };
 };
 
+const splitOrganizationQueries = (value) =>
+  String(value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 export const matchesTagMode = (documentTagSlugs, selectedTagSlugs, tagMode) => {
   if (selectedTagSlugs.length === 0) {
     return true;
@@ -64,6 +70,9 @@ const matchesOrganizationQuery = (organization, organizationQuery, aliasMap) => 
   return (aliasMap.get(organization.id) ?? []).some((alias) => alias.includes(normalizedQuery));
 };
 
+const matchesAnyOrganizationQuery = (organization, organizationQueries, aliasMap) =>
+  organizationQueries.some((organizationQuery) => matchesOrganizationQuery(organization, organizationQuery, aliasMap));
+
 const getPrimarySource = (state, documentId) => {
   const occurrence = getPrimaryOccurrence(state, documentId);
   if (!occurrence) {
@@ -93,7 +102,7 @@ const getDocumentContext = (state, document) => {
   return { tags, organizations, fileTypes, recruitmentProfile };
 };
 
-export const computeRelevance = ({ document, queryTokens, organizationQuery, tagSlugs, context, state }) => {
+export const computeRelevance = ({ document, queryTokens, organizationQueries, organizationAliasMap, tagSlugs, context, state }) => {
   let score = 0;
   const tagMatches = context.tags.map((tag) => tag.slug);
   const primarySource = getPrimarySource(state, document.id);
@@ -107,7 +116,12 @@ export const computeRelevance = ({ document, queryTokens, organizationQuery, tag
   if (queryTokens.length > 0 && hasAllTokens(document.searchText, queryTokens)) {
     score += 10;
   }
-  if (organizationQuery && context.organizations.some((organization) => compactSearchText(organization.name).includes(compactSearchText(organizationQuery)))) {
+  if (
+    organizationQueries.length > 0 &&
+    context.organizations.some((organization) =>
+      matchesAnyOrganizationQuery(organization, organizationQueries, organizationAliasMap),
+    )
+  ) {
     score += 50;
   }
   if (primarySource) {
@@ -159,7 +173,7 @@ export class SearchService {
   async search(params) {
     const state = await this.repository.readState();
     const queryTokens = splitQueryTokens(params.query);
-    const organizationQuery = params.organization.trim();
+    const organizationQueries = splitOrganizationQueries(params.organization);
     const organizationAliasMap = buildOrganizationAliasMap(state);
 
     const matchedDocuments = state.documents
@@ -167,8 +181,10 @@ export class SearchService {
       .map((document) => ({ document, context: getDocumentContext(state, document) }))
       .filter(({ document, context }) => matchesTagMode(context.tags.map((tag) => tag.slug), params.tagSlugs, params.tagMode))
       .filter(({ context }) =>
-        organizationQuery
-          ? context.organizations.some((organization) => matchesOrganizationQuery(organization, organizationQuery, organizationAliasMap))
+        organizationQueries.length > 0
+          ? context.organizations.some((organization) =>
+              matchesAnyOrganizationQuery(organization, organizationQueries, organizationAliasMap),
+            )
           : true,
       )
       .filter(({ context }) => (params.fileType ? context.fileTypes.includes(params.fileType) : true))
@@ -184,7 +200,8 @@ export class SearchService {
         relevance: computeRelevance({
           document,
           queryTokens,
-          organizationQuery,
+          organizationQueries,
+          organizationAliasMap,
           tagSlugs: params.tagSlugs,
           context,
           state,

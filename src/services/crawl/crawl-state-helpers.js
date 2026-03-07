@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { createId } from "../../utils/ids.js";
+import { createId, createStableId } from "../../utils/ids.js";
 import { normalizeUrl, normalizeWhitespace } from "../../utils/normalize.js";
 
 const now = () => new Date().toISOString();
@@ -45,8 +45,8 @@ export const buildRunItem = (runId, candidate, status, extra = {}) => ({
   createdAt: now(),
 });
 
-const buildDocument = (title, publishedAt) => ({
-  id: createId("doc"),
+const buildDocument = (documentId, title, publishedAt) => ({
+  id: documentId,
   representativeTitle: title,
   normalizedTitle: "",
   representativeSummary: null,
@@ -62,6 +62,28 @@ const buildDocument = (title, publishedAt) => ({
   createdAt: now(),
   updatedAt: now(),
 });
+
+const buildDocumentId = (source, parsed, hashes) =>
+  createStableId(
+    "doc",
+    [
+      source.id,
+      normalizeUrl(parsed.canonicalUrl),
+      normalizeUrl(parsed.assets?.[0]?.url),
+      normalizeUrl(parsed.pageUrl),
+      parsed.sourceItemKey ?? "",
+      hashes.contentHash ?? "",
+      hashes.attachmentHash ?? "",
+    ].join("|"),
+  );
+
+const buildOccurrenceId = (source, parsed) =>
+  createStableId("occ", [source.id, normalizeUrl(parsed.pageUrl), parsed.sourceItemKey ?? ""].join("|"));
+
+const buildAssetId = (occurrenceId, asset, index) =>
+  createStableId("asset", [occurrenceId, index, normalizeUrl(asset.url), asset.fileName ?? "", asset.fileType ?? ""].join("|"));
+
+const buildContentId = (occurrenceId, contentHash) => createStableId("content", [occurrenceId, contentHash ?? ""].join("|"));
 
 const buildAccessPolicy = (source) => {
   if (source.allowCache) {
@@ -112,7 +134,7 @@ const replaceOccurrenceAssets = (state, occurrenceId, source, assets) => {
   state.documentAssets = state.documentAssets.filter((entry) => entry.occurrenceId !== occurrenceId);
   assets.forEach((asset, index) => {
     state.documentAssets.push({
-      id: createId("asset"),
+      id: buildAssetId(occurrenceId, asset, index),
       occurrenceId,
       assetKind: "attachment",
       sourceUrl: asset.url,
@@ -141,7 +163,7 @@ const upsertOccurrenceContent = (state, occurrenceId, parsed, contentHash) => {
   }
 
   state.documentContents.push({
-    id: createId("content"),
+    id: buildContentId(occurrenceId, contentHash),
     occurrenceId,
     versionNo: (latestEntry?.versionNo ?? 0) + 1,
     contentSource: "html_body",
@@ -183,13 +205,13 @@ export const upsertParsedDocument = (state, source, parsed) => {
   const created = !documentId;
 
   if (!documentId) {
-    const document = buildDocument(parsed.sourceTitle, parsed.publishedAt ?? null);
+    const document = buildDocument(buildDocumentId(source, parsed, { contentHash, attachmentHash }), parsed.sourceTitle, parsed.publishedAt ?? null);
     state.documents.push(document);
     documentId = document.id;
   }
 
   const occurrence = existingOccurrence ?? {
-    id: createId("occ"),
+    id: buildOccurrenceId(source, parsed),
     documentId,
     sourceId: source.id,
     firstSeenAt: now(),
