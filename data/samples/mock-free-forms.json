@@ -1,0 +1,66 @@
+[
+  {
+    "sourceItemKey": "free_001",
+    "pageUrl": "https://sample.local/forms/standard-labor-contract",
+    "canonicalUrl": "https://sample.local/forms/standard-labor-contract",
+    "sourceTitle": "표준 근로계약서 무료 양식",
+    "bodyText": "근로계약서 무료 양식입니다. 사용자와 근로자의 인적 사항, 임금, 근무시간, 휴게시간, 계약기간, 연장근로 조건을 정리할 수 있습니다. PDF 파일을 내려받아 바로 사용할 수 있습니다.",
+    "organizationHints": [],
+    "publishedAt": "2026-02-15T00:00:00Z",
+    "assets": [
+      {
+        "url": "https://sample.local/files/standard-labor-contract.pdf",
+        "fileName": "standard-labor-contract.pdf",
+        "fileType": "pdf"
+      }
+    ]
+  },
+  {
+    "sourceItemKey": "free_002",
+    "pageUrl": "https://sample.local/forms/freelance-service-contract",
+    "canonicalUrl": "https://sample.local/forms/freelance-service-contract",
+    "sourceTitle": "프리랜서 디자인 용역 계약서 양식",
+    "bodyText": "프리랜서 디자이너와 의뢰인을 위한 용역 계약서입니다. 산출물 범위, 수정 횟수, 대금 지급 조건, 비밀유지 조항, 저작권 이전 범위를 포함합니다. 디자인 외주 제안서와 함께 사용하기 좋습니다.",
+    "organizationHints": [],
+    "publishedAt": "2026-02-18T00:00:00Z",
+    "assets": [
+      {
+        "url": "https://sample.local/files/freelance-design-contract.pdf",
+        "fileName": "freelance-design-contract.pdf",
+        "fileType": "pdf"
+      }
+    ]
+  },
+  {
+    "sourceItemKey": "free_003",
+    "pageUrl": "https://sample.local/forms/design-proposal-template",
+    "canonicalUrl": "https://sample.local/forms/design-proposal-template",
+    "sourceTitle": "디자인 제안서 템플릿",
+    "bodyText": "브랜드 리뉴얼과 앱 UI 프로젝트에 사용할 수 있는 디자인 제안서 템플릿입니다. 프로젝트 개요, 디자인 방향, 일정, 견적, 팀 구성, 포트폴리오 예시를 포함합니다.",
+    "organizationHints": [],
+    "publishedAt": "2026-01-20T00:00:00Z",
+    "assets": [
+      {
+        "url": "https://sample.local/files/design-proposal-template.pdf",
+        "fileName": "design-proposal-template.pdf",
+        "fileType": "pdf"
+      }
+    ]
+  },
+  {
+    "sourceItemKey": "free_004",
+    "pageUrl": "https://sample.local/forms/basic-resume",
+    "canonicalUrl": "https://sample.local/forms/basic-resume",
+    "sourceTitle": "기본 이력서 양식",
+    "bodyText": "신입과 경력직 모두 사용할 수 있는 이력서 양식입니다. 학력, 경력, 프로젝트, 자격증, 기술 스택, 포트폴리오 링크를 정리할 수 있습니다. PDF와 DOCX 버전이 함께 제공됩니다.",
+    "organizationHints": [],
+    "publishedAt": "2026-02-03T00:00:00Z",
+    "assets": [
+      {
+        "url": "https://sample.local/files/basic-resume.pdf",
+        "fileName": "basic-resume.pdf",
+        "fileType": "pdf"
+      }
+    ]
+  }
+]

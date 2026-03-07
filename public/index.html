@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Form Hub</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <p class="eyebrow">FORM HUB PROTOTYPE</p>
+        <h1>무료 양식과 공개 채용 지원서를 한 번에 찾는 검색 허브</h1>
+        <p class="hero-copy">
+          태그 교집합/합집합 검색, 기관명 필터, 출처 추적, 샘플 수집 재실행까지 한 화면에서 확인할 수 있습니다.
+        </p>
+      </header>
+
+      <main class="grid">
+        <section class="panel search-panel">
+          <div class="section-head">
+            <h2>검색</h2>
+            <span id="result-count" class="pill">0건</span>
+          </div>
+
+          <form id="search-form" class="search-form">
+            <label>
+              <span>키워드</span>
+              <input id="query-input" name="query" type="text" placeholder="예: 산업은행 자소서, 근로계약서" />
+            </label>
+            <label>
+              <span>기관명</span>
+              <input id="organization-input" name="organization" type="text" list="organization-list" placeholder="예: 산업은행, 기업은행" />
+            </label>
+            <datalist id="organization-list"></datalist>
+
+            <div class="inline-fields">
+              <label>
+                <span>태그 모드</span>
+                <select id="tag-mode-input" name="tagMode">
+                  <option value="and">교집합</option>
+                  <option value="or">합집합</option>
+                </select>
+              </label>
+              <label>
+                <span>정렬</span>
+                <select id="sort-input" name="sort">
+                  <option value="relevance">관련도순</option>
+                  <option value="latest">최신순</option>
+                  <option value="sourceTrust">출처 신뢰도순</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="tag-area">
+              <div class="section-head compact">
+                <h3>태그</h3>
+                <button id="clear-tags-button" type="button" class="ghost-button">태그 초기화</button>
+              </div>
+              <div id="tag-list" class="tag-list"></div>
+            </div>
+
+            <button type="submit" class="primary-button">검색 실행</button>
+          </form>
+
+          <div id="result-list" class="result-list"></div>
+        </section>
+
+        <section class="stack">
+          <section class="panel detail-panel">
+            <div class="section-head">
+              <h2>상세 보기</h2>
+              <span id="detail-status" class="pill muted">문서를 선택하세요</span>
+            </div>
+            <div id="detail-view" class="detail-view empty-state">
+              목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.
+            </div>
+          </section>
+
+          <section class="panel admin-panel">
+            <div class="section-head">
+              <h2>운영 상태</h2>
+              <button id="crawl-button" type="button" class="ghost-button">샘플 수집 재실행</button>
+            </div>
+            <div class="admin-grid">
+              <div>
+                <h3>소스</h3>
+                <div id="source-list" class="mini-list"></div>
+              </div>
+              <div>
+                <h3>최근 실행</h3>
+                <div id="run-list" class="mini-list"></div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

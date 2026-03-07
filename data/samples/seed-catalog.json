@@ -1,0 +1,95 @@
+{
+  "sources": [
+    {
+      "id": "source_public_forms",
+      "name": "무료 양식 샘플 피드",
+      "baseUrl": "https://sample.local/forms",
+      "sourceType": "manual_json",
+      "parserKey": "manual_json_source",
+      "parserConfig": {
+        "sampleFile": "mock-free-forms.json"
+      },
+      "status": "active",
+      "allowCrawl": true,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.72,
+      "crawlIntervalMinutes": 360,
+      "requestTimeoutMs": 5000,
+      "policyNote": "로컬 샘플 양식 데이터"
+    },
+    {
+      "id": "source_recruitment_forms",
+      "name": "채용 지원서 샘플 피드",
+      "baseUrl": "https://sample.local/recruitment",
+      "sourceType": "manual_json",
+      "parserKey": "manual_json_source",
+      "parserConfig": {
+        "sampleFile": "mock-recruitment-forms.json"
+      },
+      "status": "active",
+      "allowCrawl": true,
+      "allowCache": false,
+      "allowPreview": true,
+      "trustScore": 0.95,
+      "crawlIntervalMinutes": 360,
+      "requestTimeoutMs": 5000,
+      "policyNote": "로컬 샘플 채용 데이터"
+    }
+  ],
+  "tags": [
+    { "id": "tag_resume", "name": "이력서", "slug": "resume", "tagGroup": "document_type" },
+    { "id": "tag_cover_letter", "name": "자소서", "slug": "cover-letter", "tagGroup": "document_type" },
+    { "id": "tag_labor_contract", "name": "근로계약서", "slug": "labor-contract", "tagGroup": "document_type" },
+    { "id": "tag_freelance_contract", "name": "프리랜서 계약서", "slug": "freelance-contract", "tagGroup": "document_type" },
+    { "id": "tag_proposal", "name": "제안서", "slug": "proposal", "tagGroup": "document_type" },
+    { "id": "tag_recruitment", "name": "채용", "slug": "recruitment", "tagGroup": "domain" },
+    { "id": "tag_labor", "name": "노무", "slug": "labor", "tagGroup": "domain" },
+    { "id": "tag_design", "name": "디자인", "slug": "design", "tagGroup": "domain" },
+    { "id": "tag_public_company", "name": "공기업", "slug": "public-company", "tagGroup": "organization" },
+    { "id": "tag_banking", "name": "은행", "slug": "banking", "tagGroup": "organization" },
+    { "id": "tag_new_grad", "name": "신입", "slug": "new-grad", "tagGroup": "seniority" },
+    { "id": "tag_intern", "name": "인턴", "slug": "intern", "tagGroup": "employment_type" },
+    { "id": "tag_pdf", "name": "PDF", "slug": "pdf", "tagGroup": "format" }
+  ],
+  "organizations": [
+    {
+      "id": "org_kdb",
+      "name": "산업은행",
+      "normalizedName": "산업은행",
+      "organizationType": "bank",
+      "aliases": ["kdb산업은행", "한국산업은행", "kdb"]
+    },
+    {
+      "id": "org_ibk",
+      "name": "기업은행",
+      "normalizedName": "기업은행",
+      "organizationType": "bank",
+      "aliases": ["ibk기업은행", "중소기업은행", "ibk"]
+    },
+    {
+      "id": "org_kepco",
+      "name": "한국전력공사",
+      "normalizedName": "한국전력공사",
+      "organizationType": "public_company",
+      "aliases": ["한전", "kepco"]
+    }
+  ],
+  "tagKeywordRules": [
+    { "id": "rule_resume_title", "tagId": "tag_resume", "ruleName": "resume title", "matchField": "all", "patternType": "contains", "patternValue": "이력서", "polarity": "include", "weight": 1.3 },
+    { "id": "rule_cover_letter", "tagId": "tag_cover_letter", "ruleName": "cover letter", "matchField": "all", "patternType": "contains", "patternValue": "자기소개서", "polarity": "include", "weight": 1.4 },
+    { "id": "rule_cover_letter_short", "tagId": "tag_cover_letter", "ruleName": "cover letter short", "matchField": "all", "patternType": "contains", "patternValue": "자소서", "polarity": "include", "weight": 1.4 },
+    { "id": "rule_labor_contract", "tagId": "tag_labor_contract", "ruleName": "labor contract", "matchField": "all", "patternType": "contains", "patternValue": "근로계약서", "polarity": "include", "weight": 1.5 },
+    { "id": "rule_freelance_contract", "tagId": "tag_freelance_contract", "ruleName": "freelance contract", "matchField": "all", "patternType": "contains", "patternValue": "프리랜서", "polarity": "include", "weight": 1.3 },
+    { "id": "rule_proposal", "tagId": "tag_proposal", "ruleName": "proposal", "matchField": "all", "patternType": "contains", "patternValue": "제안서", "polarity": "include", "weight": 1.2 },
+    { "id": "rule_recruitment_apply", "tagId": "tag_recruitment", "ruleName": "recruitment apply", "matchField": "all", "patternType": "contains", "patternValue": "입사지원", "polarity": "include", "weight": 1.6 },
+    { "id": "rule_recruitment_hiring", "tagId": "tag_recruitment", "ruleName": "recruitment hiring", "matchField": "all", "patternType": "contains", "patternValue": "채용", "polarity": "include", "weight": 1.1 },
+    { "id": "rule_labor_domain", "tagId": "tag_labor", "ruleName": "labor domain", "matchField": "all", "patternType": "contains", "patternValue": "근로", "polarity": "include", "weight": 1.0 },
+    { "id": "rule_design_domain", "tagId": "tag_design", "ruleName": "design domain", "matchField": "all", "patternType": "contains", "patternValue": "디자인", "polarity": "include", "weight": 1.2 },
+    { "id": "rule_public_company", "tagId": "tag_public_company", "ruleName": "public company", "matchField": "all", "patternType": "contains", "patternValue": "공기업", "polarity": "include", "weight": 1.2 },
+    { "id": "rule_banking", "tagId": "tag_banking", "ruleName": "banking", "matchField": "all", "patternType": "contains", "patternValue": "은행", "polarity": "include", "weight": 1.0 },
+    { "id": "rule_new_grad", "tagId": "tag_new_grad", "ruleName": "new grad", "matchField": "all", "patternType": "contains", "patternValue": "신입", "polarity": "include", "weight": 1.2 },
+    { "id": "rule_intern", "tagId": "tag_intern", "ruleName": "intern", "matchField": "all", "patternType": "contains", "patternValue": "인턴", "polarity": "include", "weight": 1.3 },
+    { "id": "rule_pdf", "tagId": "tag_pdf", "ruleName": "pdf", "matchField": "all", "patternType": "contains", "patternValue": "pdf", "polarity": "include", "weight": 0.6 }
+  ]
+}
