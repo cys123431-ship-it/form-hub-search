@@ -122,40 +122,41 @@ export class NationalAdminBoardSearchAdapter {
       return [];
     }
 
-    const items = [];
-    for (const searchQuery of queries) {
-      const results = await fetchPublicSearchResults(searchQuery, this.timeoutMs);
-      results.forEach((result) => {
+    const searchBatches = await Promise.all(queries.map((searchQuery) => fetchPublicSearchResults(searchQuery, this.timeoutMs)));
+    const items = searchBatches.flatMap((results) =>
+      results.flatMap((result) => {
         if (!isOfficialAdminUrl(result.url)) {
-          return;
+          return [];
         }
         if (!matchesBoardIntent(result.text, result.url, queryText)) {
-          return;
+          return [];
         }
 
         const locationHints = buildLocationHints(result.text, region);
-        items.push({
-          sourceItemKey: result.url,
-          pageUrl: result.url,
-          canonicalUrl: result.url,
-          sourceTitle: result.title,
-          bodyText: [
-            result.title,
-            result.snippet,
-            result.displayUrl,
-            locationHints.join(" "),
-            "전국 행정기관 전용 게시판 검색",
-          ]
-            .filter(Boolean)
-            .join(". "),
-          organizationHints: unique(locationHints),
-          locationHints,
-          publishedAt: null,
-          assets: [],
-          matchText: result.text,
-        });
-      });
-    }
+        return [
+          {
+            sourceItemKey: result.url,
+            pageUrl: result.url,
+            canonicalUrl: result.url,
+            sourceTitle: result.title,
+            bodyText: [
+              result.title,
+              result.snippet,
+              result.displayUrl,
+              locationHints.join(" "),
+              "전국 행정기관 전용 게시판 검색",
+            ]
+              .filter(Boolean)
+              .join(". "),
+            organizationHints: unique(locationHints),
+            locationHints,
+            publishedAt: null,
+            assets: [],
+            matchText: result.text,
+          },
+        ];
+      }),
+    );
 
     const dedupedItems = [...new Map(items.map((item) => [item.canonicalUrl, item])).values()];
     return selectRankedResults(dedupedItems, String(queryText ?? "").trim(), { limit, requireQueryMatch });

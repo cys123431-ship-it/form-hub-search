@@ -12,8 +12,39 @@ const htmlResultPattern =
 const liteResultPattern =
   /<a rel="nofollow" href="([^"]+)" class='result-link'>([\s\S]*?)<\/a>(?:[\s\S]*?<td class='result-snippet'>\s*([\s\S]*?)\s*<\/td>)?[\s\S]*?<span class='link-text'>([\s\S]*?)<\/span>/giu;
 const naverResultPattern = /<a[^>]+href="(https?:\/\/[^"]+)"[^>]*target="_blank"[^>]*>([\s\S]*?)<\/a>/giu;
+const providerCacheTtlMs = 10 * 60 * 1000;
+const providerCacheLimit = 120;
+const providerCache = new Map();
 
 const unique = (values) => [...new Set(values.filter(Boolean))];
+const createCacheKey = (provider, query) => `${provider}:${String(query ?? "").trim().toLowerCase()}`;
+const getCachedProviderResults = (cacheKey) => {
+  const cachedEntry = providerCache.get(cacheKey);
+  if (!cachedEntry) {
+    return null;
+  }
+
+  if (cachedEntry.expiresAt <= Date.now()) {
+    providerCache.delete(cacheKey);
+    return null;
+  }
+
+  return cachedEntry.results.map((entry) => ({ ...entry }));
+};
+
+const setCachedProviderResults = (cacheKey, results) => {
+  providerCache.set(cacheKey, {
+    expiresAt: Date.now() + providerCacheTtlMs,
+    results: results.map((entry) => ({ ...entry })),
+  });
+
+  if (providerCache.size > providerCacheLimit) {
+    const oldestKey = providerCache.keys().next().value;
+    if (oldestKey) {
+      providerCache.delete(oldestKey);
+    }
+  }
+};
 
 export const decodeDdgUrl = (href) => {
   const decodedHref = decodeHtml(String(href ?? "").trim());
@@ -70,12 +101,19 @@ export const fetchDuckDuckGoResults = async (searchQuery, timeoutMs = 8000) => {
     return [];
   }
 
+  const cacheKey = createCacheKey("ddg", trimmedQuery);
+  const cachedResults = getCachedProviderResults(cacheKey);
+  if (cachedResults) {
+    return cachedResults;
+  }
+
   for (const provider of searchProviders) {
     try {
       const requestUrl = `${provider.baseUrl}?q=${encodeURIComponent(trimmedQuery)}`;
       const html = await fetchTextWithTimeout(requestUrl, timeoutMs);
       const results = parseHtmlResults(html, provider.kind);
       if (results.length > 0) {
+        setCachedProviderResults(cacheKey, results);
         return results;
       }
     } catch {
@@ -108,6 +146,12 @@ export const fetchNaverResults = async (searchQuery, timeoutMs = 8000) => {
     return [];
   }
 
+  const cacheKey = createCacheKey("naver", trimmedQuery);
+  const cachedResults = getCachedProviderResults(cacheKey);
+  if (cachedResults) {
+    return cachedResults;
+  }
+
   try {
     const requestUrl = `https://search.naver.com/search.naver?where=nexearch&query=${encodeURIComponent(trimmedQuery)}`;
     const html = await fetchTextWithTimeout(requestUrl, timeoutMs);
@@ -128,7 +172,11 @@ export const fetchNaverResults = async (searchQuery, timeoutMs = 8000) => {
       });
     }
 
-    return [...new Map(items.map((item) => [item.url, item])).values()];
+    const dedupedItems = [...new Map(items.map((item) => [item.url, item])).values()];
+    if (dedupedItems.length > 0) {
+      setCachedProviderResults(cacheKey, dedupedItems);
+    }
+    return dedupedItems;
   } catch {
     return [];
   }

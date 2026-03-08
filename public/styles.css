@@ -129,6 +129,7 @@ label span {
 
 .search-assist {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 0 0 14px;
 }
@@ -160,7 +161,8 @@ select {
 
 .primary-button,
 .ghost-button,
-.tag-chip {
+.tag-chip,
+.ghost-link {
   border: 0;
   border-radius: 999px;
   cursor: pointer;
@@ -176,6 +178,26 @@ select {
   padding: 10px 14px;
   color: var(--brand-deep);
   background: rgba(200, 92, 63, 0.09);
+}
+
+.ghost-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  color: var(--brand-deep);
+  text-decoration: none;
+  background: rgba(200, 92, 63, 0.09);
+}
+
+.small-button {
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.active-action {
+  color: #fff8f5;
+  background: linear-gradient(135deg, var(--accent), #2f8c86);
 }
 
 .pill {
@@ -305,6 +327,19 @@ select {
   margin-top: 12px;
 }
 
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.search-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .mini-inline-text {
   color: var(--muted);
   font-size: 12px;
@@ -313,6 +348,14 @@ select {
 .empty-result-card strong {
   display: block;
   margin-bottom: 8px;
+}
+
+.favorites-head {
+  margin-top: 18px;
+}
+
+.favorite-card {
+  gap: 0;
 }
 
 .detail-view.empty-state {
@@ -360,7 +403,8 @@ select {
   .grid,
   .admin-grid,
   .summary-grid,
-  .inline-fields {
+  .inline-fields,
+  .search-assist {
     grid-template-columns: 1fr;
   }
 

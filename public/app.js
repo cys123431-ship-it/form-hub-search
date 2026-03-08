@@ -7,10 +7,16 @@ const state = {
   lastPayload: null,
   isSearching: false,
   recentSearches: [],
+  savedSearches: [],
+  favoriteDocuments: [],
 };
 
 const recentSearchStorageKey = "form-hub-recent-searches";
+const savedSearchStorageKey = "form-hub-saved-searches";
+const favoriteDocumentsStorageKey = "form-hub-favorite-documents";
 const maxRecentSearches = 6;
+const maxSavedSearches = 10;
+const maxFavoriteDocuments = 18;
 const searchPresets = [
   { label: "삼성전자 자소서", query: "자소서", organization: "삼성전자", sourceScope: "official_corporate" },
   { label: "공공근로 대전", query: "공공근로", region: "대전광역시", recruitmentKind: "public_work" },
@@ -77,8 +83,14 @@ const elements = {
   summaryGrid: document.querySelector("#summary-grid"),
   presetList: document.querySelector("#preset-list"),
   recentSearchList: document.querySelector("#recent-search-list"),
+  savedSearchList: document.querySelector("#saved-search-list"),
+  favoriteDocumentList: document.querySelector("#favorite-document-list"),
   searchForm: document.querySelector("#search-form"),
   searchButton: document.querySelector("#search-button"),
+  saveCurrentSearchButton: document.querySelector("#save-current-search-button"),
+  clearRecentSearchesButton: document.querySelector("#clear-recent-searches-button"),
+  clearSavedSearchesButton: document.querySelector("#clear-saved-searches-button"),
+  clearFavoritesButton: document.querySelector("#clear-favorites-button"),
   queryInput: document.querySelector("#query-input"),
   organizationInput: document.querySelector("#organization-input"),
   regionInput: document.querySelector("#region-input"),
@@ -162,9 +174,9 @@ const scopeBadgeTone = (scope) =>
     all: "muted",
   })[scope] ?? "muted";
 
-const readRecentSearches = () => {
+const readStoredList = (storageKey) => {
   try {
-    const rawValue = localStorage.getItem(recentSearchStorageKey);
+    const rawValue = localStorage.getItem(storageKey);
     const parsed = rawValue ? JSON.parse(rawValue) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -172,13 +184,20 @@ const readRecentSearches = () => {
   }
 };
 
-const writeRecentSearches = () => {
+const writeStoredList = (storageKey, value) => {
   try {
-    localStorage.setItem(recentSearchStorageKey, JSON.stringify(state.recentSearches));
+    localStorage.setItem(storageKey, JSON.stringify(value));
   } catch {
     // Ignore storage failures in private mode or blocked environments.
   }
 };
+
+const readRecentSearches = () => readStoredList(recentSearchStorageKey);
+const readSavedSearches = () => readStoredList(savedSearchStorageKey);
+const readFavoriteDocuments = () => readStoredList(favoriteDocumentsStorageKey);
+const writeRecentSearches = () => writeStoredList(recentSearchStorageKey, state.recentSearches);
+const writeSavedSearches = () => writeStoredList(savedSearchStorageKey, state.savedSearches);
+const writeFavoriteDocuments = () => writeStoredList(favoriteDocumentsStorageKey, state.favoriteDocuments);
 
 const buildCurrentSearchRecord = () => ({
   query: elements.queryInput.value.trim(),
@@ -193,6 +212,29 @@ const buildCurrentSearchRecord = () => ({
   tagSlugs: [...state.selectedTagSlugs],
 });
 
+const searchRecordSignature = (record) =>
+  JSON.stringify({
+    query: record.query ?? "",
+    organization: record.organization ?? "",
+    region: record.region ?? "",
+    sourceScope: record.sourceScope ?? "all",
+    recruitmentKind: record.recruitmentKind ?? "",
+    fileType: record.fileType ?? "",
+    pageSize: record.pageSize ?? "12",
+    sort: record.sort ?? "relevance",
+    tagMode: record.tagMode ?? "and",
+    tagSlugs: Array.isArray(record.tagSlugs) ? [...record.tagSlugs].sort() : [],
+  });
+
+const hasMeaningfulSearchValue = (record) =>
+  Boolean(record.query) ||
+  Boolean(record.organization) ||
+  Boolean(record.region) ||
+  Boolean(record.recruitmentKind) ||
+  Boolean(record.fileType) ||
+  record.sourceScope !== "all" ||
+  (Array.isArray(record.tagSlugs) && record.tagSlugs.length > 0);
+
 const createSearchLabel = (record) =>
   [
     record.query,
@@ -203,6 +245,27 @@ const createSearchLabel = (record) =>
   ]
     .filter(Boolean)
     .join(" · ") || "최근 검색";
+
+const buildFavoriteSnapshot = (documentLike) => {
+  const primarySource = documentLike.primarySource ?? {};
+  const key = String(primarySource.url ?? documentLike.id ?? documentLike.title ?? "").trim().toLowerCase();
+  return {
+    key,
+    id: documentLike.id,
+    title: documentLike.title ?? "제목 없음",
+    url: safeExternalUrl(primarySource.url ?? documentLike.url ?? ""),
+    sourceName: primarySource.name ?? "",
+    sourceScopeLabel: documentLike.sourceScopeLabel ?? primarySource.sourceScopeLabel ?? "",
+    organizations: Array.isArray(documentLike.organizations) ? [...documentLike.organizations] : [],
+    locations: Array.isArray(documentLike.locations) ? [...documentLike.locations] : [],
+    previewText: documentLike.previewText ?? documentLike.summary ?? "",
+  };
+};
+
+const isFavoriteDocument = (documentLike) => {
+  const snapshot = buildFavoriteSnapshot(documentLike);
+  return Boolean(snapshot.key) && state.favoriteDocuments.some((entry) => entry.key === snapshot.key);
+};
 
 const applySearchRecord = async (record) => {
   elements.queryInput.value = record.query ?? "";
@@ -222,25 +285,49 @@ const applySearchRecord = async (record) => {
 
 const rememberSearch = () => {
   const record = buildCurrentSearchRecord();
-  const hasMeaningfulValue =
-    Boolean(record.query) ||
-    Boolean(record.organization) ||
-    Boolean(record.region) ||
-    Boolean(record.recruitmentKind) ||
-    Boolean(record.fileType) ||
-    record.sourceScope !== "all" ||
-    (Array.isArray(record.tagSlugs) && record.tagSlugs.length > 0);
-  if (!hasMeaningfulValue) {
+  if (!hasMeaningfulSearchValue(record)) {
     return;
   }
 
-  const signature = JSON.stringify(record);
-  state.recentSearches = [record, ...state.recentSearches.filter((entry) => JSON.stringify(entry) !== signature)].slice(
+  const signature = searchRecordSignature(record);
+  state.recentSearches = [record, ...state.recentSearches.filter((entry) => searchRecordSignature(entry) !== signature)].slice(
     0,
     maxRecentSearches,
   );
   writeRecentSearches();
   renderRecentSearches();
+};
+
+const saveCurrentSearch = () => {
+  const record = buildCurrentSearchRecord();
+  if (!hasMeaningfulSearchValue(record)) {
+    elements.searchMeta.textContent = "저장할 검색 조건이 없습니다. 검색어, 기관명, 지역, 필터 중 하나를 먼저 입력해보세요.";
+    return;
+  }
+
+  const signature = searchRecordSignature(record);
+  state.savedSearches = [record, ...state.savedSearches.filter((entry) => searchRecordSignature(entry) !== signature)].slice(
+    0,
+    maxSavedSearches,
+  );
+  writeSavedSearches();
+  renderSavedSearches();
+  elements.searchMeta.textContent = `검색 조건을 저장했습니다. 총 ${state.savedSearches.length}개 저장됨`;
+};
+
+const toggleFavoriteDocument = (documentLike) => {
+  const snapshot = buildFavoriteSnapshot(documentLike);
+  if (!snapshot.key) {
+    return false;
+  }
+
+  const exists = state.favoriteDocuments.some((entry) => entry.key === snapshot.key);
+  state.favoriteDocuments = exists
+    ? state.favoriteDocuments.filter((entry) => entry.key !== snapshot.key)
+    : [snapshot, ...state.favoriteDocuments].slice(0, maxFavoriteDocuments);
+  writeFavoriteDocuments();
+  renderFavoriteDocuments();
+  return !exists;
 };
 
 const renderQuickSearches = () => {
@@ -287,13 +374,149 @@ const renderRecentSearches = () => {
   });
 };
 
+const renderSavedSearches = () => {
+  clearElement(elements.savedSearchList);
+  if (state.savedSearches.length === 0) {
+    elements.savedSearchList.append(createElement("span", { className: "mini-inline-text", text: "저장된 검색이 없습니다." }));
+    return;
+  }
+
+  state.savedSearches.forEach((record) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag-chip recent-chip";
+    button.textContent = createSearchLabel(record);
+    button.addEventListener("click", async () => {
+      await applySearchRecord(record);
+    });
+    elements.savedSearchList.append(button);
+  });
+};
+
+const renderFavoriteDocuments = () => {
+  clearElement(elements.favoriteDocumentList);
+  if (state.favoriteDocuments.length === 0) {
+    elements.favoriteDocumentList.append(createElement("div", { className: "mini-item", text: "저장된 관심 문서가 없습니다." }));
+    return;
+  }
+
+  state.favoriteDocuments.forEach((entry) => {
+    const item = createElement("article", { className: "mini-item favorite-card" });
+    item.append(createElement("strong", { text: entry.title }));
+    item.append(
+      createElement("p", {
+        className: "detail-meta",
+        text: [entry.sourceScopeLabel, entry.sourceName, entry.organizations?.join(", "), entry.locations?.join(", ")]
+          .filter(Boolean)
+          .join(" · "),
+      }),
+    );
+    item.append(createElement("p", { className: "result-preview", text: entry.previewText || "미리보기 없음" }));
+
+    const actions = createElement("div", { className: "result-actions" });
+    const sourceLink = createElement("a", { className: "ghost-link", text: "원문 페이지" });
+    sourceLink.href = entry.url;
+    sourceLink.target = "_blank";
+    sourceLink.rel = "noreferrer";
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "ghost-button small-button";
+    removeButton.textContent = "삭제";
+    removeButton.addEventListener("click", () => {
+      state.favoriteDocuments = state.favoriteDocuments.filter((favorite) => favorite.key !== entry.key);
+      writeFavoriteDocuments();
+      renderFavoriteDocuments();
+      if (state.lastPayload) {
+        renderResults(state.lastPayload);
+      }
+    });
+
+    actions.append(sourceLink, removeButton);
+    item.append(actions);
+    elements.favoriteDocumentList.append(item);
+  });
+};
+
 const setSearchingState = (isSearching) => {
   state.isSearching = isSearching;
   elements.searchButton.disabled = isSearching;
+  elements.saveCurrentSearchButton.disabled = isSearching;
   elements.searchButton.textContent = isSearching ? "검색 중..." : "검색 실행";
   if (isSearching) {
     elements.searchMeta.textContent = "검색 중... 첫 라이브 검색은 다소 느릴 수 있습니다.";
   }
+};
+
+const buildSearchParamsFromRecord = (record, options = {}) => {
+  const searchParams = new URLSearchParams();
+  if (record.query) {
+    searchParams.set("query", record.query);
+  }
+  if (record.organization) {
+    searchParams.set("organization", record.organization);
+  }
+  if (record.region) {
+    searchParams.set("region", record.region);
+  }
+  if (record.recruitmentKind) {
+    searchParams.set("recruitmentKind", record.recruitmentKind);
+  }
+  if (record.fileType) {
+    searchParams.set("fileType", record.fileType);
+  }
+  if (Array.isArray(record.tagSlugs) && record.tagSlugs.length > 0) {
+    searchParams.set("tagSlugs", record.tagSlugs.join(","));
+  }
+  searchParams.set("sourceScope", record.sourceScope ?? "all");
+  searchParams.set("tagMode", record.tagMode ?? "and");
+  searchParams.set("sort", record.sort ?? "relevance");
+  searchParams.set("page", String(options.page ?? 1));
+  searchParams.set("pageSize", record.pageSize ?? "12");
+  return searchParams.toString();
+};
+
+const scheduleSearchPrewarm = () => {
+  const prewarmCandidates = [...state.savedSearches, ...state.recentSearches, ...searchPresets]
+    .filter((record) => hasMeaningfulSearchValue(record))
+    .reduce((accumulator, record) => {
+      const signature = searchRecordSignature(record);
+      if (!accumulator.some((entry) => searchRecordSignature(entry) === signature)) {
+        accumulator.push({
+          ...record,
+          pageSize: "6",
+          sort: "relevance",
+          tagMode: record.tagMode ?? "and",
+        });
+      }
+      return accumulator;
+    }, [])
+    .slice(0, 4);
+
+  const runPrewarm = async () => {
+    for (const record of prewarmCandidates) {
+      try {
+        await fetch(`/api/v1/search?${buildSearchParamsFromRecord(record)}`);
+      } catch {
+        // Ignore background prewarm failures.
+      }
+    }
+  };
+
+  if (prewarmCandidates.length === 0) {
+    return;
+  }
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(() => {
+      runPrewarm();
+    }, { timeout: 1800 });
+    return;
+  }
+
+  window.setTimeout(() => {
+    runPrewarm();
+  }, 1200);
 };
 
 const resetDetailView = (message = "목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.") => {
@@ -467,6 +690,19 @@ const renderResults = (payload) => {
     footer.append(createElement("span", { className: "mini-inline-text", text: humanizeAccessMode(item.primarySource?.accessMode) }));
     article.append(footer);
 
+    const actions = createElement("div", { className: "result-actions" });
+    const favoriteButton = document.createElement("button");
+    favoriteButton.type = "button";
+    favoriteButton.className = `ghost-button small-button ${isFavoriteDocument(item) ? "active-action" : ""}`.trim();
+    favoriteButton.textContent = isFavoriteDocument(item) ? "저장됨" : "관심 저장";
+    favoriteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleFavoriteDocument(item);
+      renderResults(state.lastPayload ?? payload);
+    });
+    actions.append(favoriteButton);
+    article.append(actions);
+
     article.addEventListener("click", async () => {
       state.selectedDocumentId = item.id;
       await loadDetail(item.id);
@@ -514,6 +750,28 @@ const renderDetail = (document) => {
       summarySection.append(createElement("p", { className: "detail-meta", text: document.primarySource.policyNote }));
     }
   }
+  const detailActions = createElement("div", { className: "result-actions" });
+  if (document.primarySource?.url) {
+    const sourceLink = createElement("a", { className: "ghost-link", text: "원문 페이지" });
+    sourceLink.href = safeExternalUrl(document.primarySource.url);
+    sourceLink.target = "_blank";
+    sourceLink.rel = "noreferrer";
+    detailActions.append(sourceLink);
+  }
+  const favoriteButton = document.createElement("button");
+  favoriteButton.type = "button";
+  favoriteButton.className = `ghost-button small-button ${isFavoriteDocument(document) ? "active-action" : ""}`.trim();
+  favoriteButton.textContent = isFavoriteDocument(document) ? "관심 저장됨" : "관심 문서 저장";
+  favoriteButton.addEventListener("click", () => {
+    const added = toggleFavoriteDocument(document);
+    favoriteButton.className = `ghost-button small-button ${added ? "active-action" : ""}`.trim();
+    favoriteButton.textContent = added ? "관심 저장됨" : "관심 문서 저장";
+    if (state.lastPayload) {
+      renderResults(state.lastPayload);
+    }
+  });
+  detailActions.append(favoriteButton);
+  summarySection.append(detailActions);
   const tagRow = createElement("div", { className: "tag-row" });
   document.tags.forEach((tag) => tagRow.append(createPill(tag.name)));
   summarySection.append(tagRow);
@@ -617,32 +875,38 @@ const renderAdmin = async () => {
   });
 };
 
+const refreshAdmin = async () => {
+  try {
+    await renderAdmin();
+  } catch (error) {
+    clearElement(elements.summaryGrid);
+    clearElement(elements.sourceList);
+    clearElement(elements.runList);
+    elements.summaryGrid.append(createElement("div", { className: "summary-card", text: `운영 상태 로드 실패: ${error.message}` }));
+  }
+};
+
 const buildSearchParams = () => {
-  const searchParams = new URLSearchParams();
-  if (elements.queryInput.value.trim()) {
-    searchParams.set("query", elements.queryInput.value.trim());
-  }
-  if (elements.organizationInput.value.trim()) {
-    searchParams.set("organization", elements.organizationInput.value.trim());
-  }
-  if (elements.regionInput.value.trim()) {
-    searchParams.set("region", elements.regionInput.value.trim());
-  }
-  if (elements.recruitmentKindInput.value) {
-    searchParams.set("recruitmentKind", elements.recruitmentKindInput.value);
-  }
-  if (elements.fileTypeInput.value) {
-    searchParams.set("fileType", elements.fileTypeInput.value);
-  }
-  if (state.selectedTagSlugs.length > 0) {
-    searchParams.set("tagSlugs", state.selectedTagSlugs.join(","));
-  }
-  searchParams.set("sourceScope", elements.sourceScopeInput.value);
-  searchParams.set("tagMode", elements.tagModeInput.value);
-  searchParams.set("sort", elements.sortInput.value);
-  searchParams.set("page", String(state.currentPage));
-  searchParams.set("pageSize", elements.pageSizeInput.value || "12");
-  return searchParams.toString();
+  return buildSearchParamsFromRecord(buildCurrentSearchRecord(), { page: state.currentPage });
+};
+
+const renderSearchError = (error) => {
+  state.lastPayload = null;
+  state.selectedDocumentId = null;
+  elements.resultCount.textContent = "0건";
+  elements.searchMeta.textContent = `검색 실패: ${error.message.replace(/^request_failed:/u, "HTTP ")}`;
+  clearElement(elements.resultList);
+  clearElement(elements.pagination);
+  const errorCard = createElement("div", { className: "mini-item empty-result-card" });
+  errorCard.append(createElement("strong", { text: "검색 요청을 처리하지 못했습니다." }));
+  errorCard.append(
+    createElement("p", {
+      className: "detail-meta",
+      text: "잠시 후 다시 시도하거나 검색 범위를 줄여보세요. 첫 라이브 검색은 외부 소스 상태에 따라 지연될 수 있습니다.",
+    }),
+  );
+  elements.resultList.append(errorCard);
+  resetDetailView("검색 실패로 상세 보기를 불러오지 못했습니다.");
 };
 
 const runSearch = async () => {
@@ -665,6 +929,8 @@ const runSearch = async () => {
       await loadDetail(payload.items[0].id);
       renderResults(payload);
     }
+  } catch (error) {
+    renderSearchError(error);
   } finally {
     setSearchingState(false);
   }
@@ -680,14 +946,19 @@ const initialize = async () => {
   state.tags = tags;
   state.organizations = organizations;
   state.recentSearches = readRecentSearches();
+  state.savedSearches = readSavedSearches();
+  state.favoriteDocuments = readFavoriteDocuments();
   renderTagList();
   renderOrganizations();
   renderRegions();
   renderQuickSearches();
   renderRecentSearches();
+  renderSavedSearches();
+  renderFavoriteDocuments();
   resetDetailView();
   await runSearch();
-  await renderAdmin();
+  await refreshAdmin();
+  scheduleSearchPrewarm();
 };
 
 elements.searchForm.addEventListener("submit", async (event) => {
@@ -703,6 +974,31 @@ elements.clearTagsButton.addEventListener("click", async () => {
   await runSearch();
 });
 
+elements.saveCurrentSearchButton.addEventListener("click", () => {
+  saveCurrentSearch();
+});
+
+elements.clearRecentSearchesButton.addEventListener("click", () => {
+  state.recentSearches = [];
+  writeRecentSearches();
+  renderRecentSearches();
+});
+
+elements.clearSavedSearchesButton.addEventListener("click", () => {
+  state.savedSearches = [];
+  writeSavedSearches();
+  renderSavedSearches();
+});
+
+elements.clearFavoritesButton.addEventListener("click", () => {
+  state.favoriteDocuments = [];
+  writeFavoriteDocuments();
+  renderFavoriteDocuments();
+  if (state.lastPayload) {
+    renderResults(state.lastPayload);
+  }
+});
+
 elements.crawlButton.addEventListener("click", async () => {
   elements.crawlButton.disabled = true;
   elements.crawlButton.textContent = "수집 실행 중";
@@ -712,7 +1008,7 @@ elements.crawlButton.addEventListener("click", async () => {
     body: JSON.stringify({}),
   });
   await runSearch();
-  await renderAdmin();
+  await refreshAdmin();
   elements.crawlButton.disabled = false;
   elements.crawlButton.textContent = "샘플 수집 재실행";
 });

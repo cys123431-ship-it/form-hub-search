@@ -105,32 +105,33 @@ export class FreeFormLiveSearchAdapter {
       return [];
     }
 
-    const items = [];
-    for (const searchQuery of queries) {
-      const results = await fetchPublicSearchResults(searchQuery, this.timeoutMs);
-      results.forEach((result) => {
+    const searchBatches = await Promise.all(queries.map((searchQuery) => fetchPublicSearchResults(searchQuery, this.timeoutMs)));
+    const items = searchBatches.flatMap((results) =>
+      results.flatMap((result) => {
         if (!isFormCandidateUrl(result.url)) {
-          return;
+          return [];
         }
         if (!matchesFormIntent(result.text, result.url)) {
-          return;
+          return [];
         }
 
-        items.push({
-          sourceItemKey: result.url,
-          pageUrl: result.url,
-          canonicalUrl: result.url,
-          sourceTitle: result.title,
-          bodyText: [result.title, result.snippet, result.displayUrl, "무료 양식 웹 크롤링"].filter(Boolean).join(". "),
-          organizationHints: [],
-          locationHints: [],
-          publishedAt: null,
-          assets: buildLiveAssetsFromUrl(result.url, result.title),
-          matchText: result.text,
-          rankBoost: buildRankBoost(result.url, result.text),
-        });
-      });
-    }
+        return [
+          {
+            sourceItemKey: result.url,
+            pageUrl: result.url,
+            canonicalUrl: result.url,
+            sourceTitle: result.title,
+            bodyText: [result.title, result.snippet, result.displayUrl, "무료 양식 웹 크롤링"].filter(Boolean).join(". "),
+            organizationHints: [],
+            locationHints: [],
+            publishedAt: null,
+            assets: buildLiveAssetsFromUrl(result.url, result.title),
+            matchText: result.text,
+            rankBoost: buildRankBoost(result.url, result.text),
+          },
+        ];
+      }),
+    );
 
     const dedupedItems = [...new Map(items.map((item) => [item.canonicalUrl, item])).values()];
     return selectRankedResults(dedupedItems, String(queryText ?? "").trim(), { limit, requireQueryMatch });

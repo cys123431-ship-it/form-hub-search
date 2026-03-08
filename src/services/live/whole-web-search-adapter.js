@@ -86,30 +86,31 @@ export class WholeWebSearchAdapter {
 
     const organizationHints = splitOrganizationQueries(organization);
     const locationHints = splitRegionQueries(region);
-    const items = [];
-    for (const searchQuery of queries) {
-      const results = await fetchPublicSearchResults(searchQuery, this.timeoutMs);
-      results.forEach((result) => {
+    const searchBatches = await Promise.all(queries.map((searchQuery) => fetchPublicSearchResults(searchQuery, this.timeoutMs)));
+    const items = searchBatches.flatMap((results) =>
+      results.flatMap((result) => {
         const hostname = normalizeHost(result.url);
         if (excludedHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))) {
-          return;
+          return [];
         }
 
-        items.push({
-          sourceItemKey: result.url,
-          pageUrl: result.url,
-          canonicalUrl: result.url,
-          sourceTitle: result.title,
-          bodyText: [result.title, result.snippet, result.displayUrl, "웹 전체 검색"].filter(Boolean).join(". "),
-          organizationHints,
-          locationHints,
-          publishedAt: null,
-          assets: buildLiveAssetsFromUrl(result.url, result.title),
-          matchText: result.text,
-          rankBoost: buildRankBoost(result.url, organizationHints, locationHints),
-        });
-      });
-    }
+        return [
+          {
+            sourceItemKey: result.url,
+            pageUrl: result.url,
+            canonicalUrl: result.url,
+            sourceTitle: result.title,
+            bodyText: [result.title, result.snippet, result.displayUrl, "웹 전체 검색"].filter(Boolean).join(". "),
+            organizationHints,
+            locationHints,
+            publishedAt: null,
+            assets: buildLiveAssetsFromUrl(result.url, result.title),
+            matchText: result.text,
+            rankBoost: buildRankBoost(result.url, organizationHints, locationHints),
+          },
+        ];
+      }),
+    );
 
     const dedupedItems = [...new Map(items.map((item) => [item.canonicalUrl, item])).values()];
     return selectRankedResults(dedupedItems, queries[0], { limit, requireQueryMatch });

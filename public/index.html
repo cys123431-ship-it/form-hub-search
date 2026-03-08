@@ -33,8 +33,16 @@
             <div>
               <div class="section-head compact">
                 <h3>최근 검색</h3>
+                <button id="clear-recent-searches-button" type="button" class="ghost-button small-button">비우기</button>
               </div>
               <div id="recent-search-list" class="tag-list"></div>
+            </div>
+            <div>
+              <div class="section-head compact">
+                <h3>저장 검색</h3>
+                <button id="clear-saved-searches-button" type="button" class="ghost-button small-button">비우기</button>
+              </div>
+              <div id="saved-search-list" class="tag-list"></div>
             </div>
           </div>
 
@@ -127,7 +135,10 @@
               <div id="tag-list" class="tag-list"></div>
             </div>
 
-            <button id="search-button" type="submit" class="primary-button">검색 실행</button>
+            <div class="search-action-row">
+              <button id="search-button" type="submit" class="primary-button">검색 실행</button>
+              <button id="save-current-search-button" type="button" class="ghost-button">현재 조건 저장</button>
+            </div>
           </form>
 
           <div id="result-list" class="result-list"></div>
@@ -143,6 +154,11 @@
             <div id="detail-view" class="detail-view empty-state">
               목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.
             </div>
+            <div class="section-head compact favorites-head">
+              <h3>관심 문서</h3>
+              <button id="clear-favorites-button" type="button" class="ghost-button small-button">비우기</button>
+            </div>
+            <div id="favorite-document-list" class="mini-list"></div>
           </section>
 
           <section class="panel admin-panel">

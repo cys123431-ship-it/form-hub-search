@@ -146,32 +146,33 @@ export class CorporateOfficialCareersSearchAdapter {
     }
 
     const organizationHints = splitOrganizationQueries(organization);
-    const items = [];
-    for (const searchQuery of queries) {
-      const results = await fetchPublicSearchResults(searchQuery, this.timeoutMs);
-      results.forEach((result) => {
+    const searchBatches = await Promise.all(queries.map((searchQuery) => fetchPublicSearchResults(searchQuery, this.timeoutMs)));
+    const items = searchBatches.flatMap((results) =>
+      results.flatMap((result) => {
         if (!isPossibleCorporateCareerUrl(result.url)) {
-          return;
+          return [];
         }
         if (!matchesCareerIntent(result.text, result.url, organizationHints)) {
-          return;
+          return [];
         }
 
-        items.push({
-          sourceItemKey: result.url,
-          pageUrl: result.url,
-          canonicalUrl: result.url,
-          sourceTitle: result.title,
-          bodyText: [result.title, result.snippet, result.displayUrl, "기업 공식 채용 홈페이지 탐색"].filter(Boolean).join(". "),
-          organizationHints,
-          locationHints: [],
-          publishedAt: null,
-          assets: buildLiveAssetsFromUrl(result.url, result.title),
-          matchText: result.text,
-          rankBoost: buildRankBoost(result.url, result.text, organizationHints),
-        });
-      });
-    }
+        return [
+          {
+            sourceItemKey: result.url,
+            pageUrl: result.url,
+            canonicalUrl: result.url,
+            sourceTitle: result.title,
+            bodyText: [result.title, result.snippet, result.displayUrl, "기업 공식 채용 홈페이지 탐색"].filter(Boolean).join(". "),
+            organizationHints,
+            locationHints: [],
+            publishedAt: null,
+            assets: buildLiveAssetsFromUrl(result.url, result.title),
+            matchText: result.text,
+            rankBoost: buildRankBoost(result.url, result.text, organizationHints),
+          },
+        ];
+      }),
+    );
 
     const dedupedItems = [...new Map(items.map((item) => [item.canonicalUrl, item])).values()];
     return selectRankedResults(dedupedItems, [organizationHints[0], String(queryText ?? "").trim()].filter(Boolean).join(" "), {
