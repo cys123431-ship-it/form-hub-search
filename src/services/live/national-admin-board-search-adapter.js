@@ -1,6 +1,6 @@
 import { compactSearchText } from "../../utils/normalize.js";
 import { municipalRegionProfiles, getMunicipalSearchProfiles, extractMatchedLocations, splitRegionQueries } from "../search/search-region.js";
-import { fetchDuckDuckGoResults, normalizeHost, uniqueQueries } from "./ddg-search.js";
+import { fetchPublicSearchResults, normalizeHost, uniqueQueries } from "./ddg-search.js";
 import { selectRankedResults } from "./live-search-utils.js";
 
 const excludedHosts = [
@@ -64,7 +64,7 @@ const isOfficialAdminUrl = (url) => {
   );
 };
 
-const matchesBoardIntent = (text, url) => {
+const matchesBoardIntent = (text, url, queryText = "") => {
   const textKey = compactSearchText(text);
   if (!textKey) {
     return false;
@@ -74,7 +74,12 @@ const matchesBoardIntent = (text, url) => {
     return true;
   }
 
-  return boardKeywords.some((keyword) => textKey.includes(compactSearchText(keyword)));
+  if (boardKeywords.some((keyword) => textKey.includes(compactSearchText(keyword)))) {
+    return true;
+  }
+
+  const queryKey = compactSearchText(queryText);
+  return Boolean(queryKey) && textKey.includes(queryKey);
 };
 
 const buildQueries = (queryText, { region = "", organization = "" } = {}) => {
@@ -92,7 +97,8 @@ const buildQueries = (queryText, { region = "", organization = "" } = {}) => {
     `${baseQuery} 고시공고 site:go.kr`,
     `${baseQuery} 채용공고 site:go.kr`,
     `${baseQuery} 게시판 site:go.kr`,
-  ]).slice(0, 4);
+    `${baseQuery} 시청 구청 군청 도청`,
+  ]).slice(0, 5);
 };
 
 const buildLocationHints = (text, region) => {
@@ -118,12 +124,12 @@ export class NationalAdminBoardSearchAdapter {
 
     const items = [];
     for (const searchQuery of queries) {
-      const results = await fetchDuckDuckGoResults(searchQuery, this.timeoutMs);
+      const results = await fetchPublicSearchResults(searchQuery, this.timeoutMs);
       results.forEach((result) => {
         if (!isOfficialAdminUrl(result.url)) {
           return;
         }
-        if (!matchesBoardIntent(result.text, result.url)) {
+        if (!matchesBoardIntent(result.text, result.url, queryText)) {
           return;
         }
 
