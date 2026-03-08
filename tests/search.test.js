@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SearchService, computeRelevance, matchesTagMode } from "../src/services/search/search-service.js";
+import { buildQueryTokenGroups, expandRecruitmentQueryVariants, matchesQueryTokenGroups } from "../src/services/search/search-query.js";
 
 test("matchesTagMode supports AND filtering", () => {
   assert.equal(matchesTagMode(["resume", "recruitment"], ["resume", "recruitment"], "and"), true);
@@ -437,4 +438,75 @@ test("SearchService keeps only municipal official documents for non-recruitment 
 
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0].title, "서울특별시 하수도 안내");
+});
+
+test("public employment query variants match related hiring documents", () => {
+  const tokenGroups = buildQueryTokenGroups("공공근로");
+
+  assert.equal(matchesQueryTokenGroups("대전광역시 기간제근로자 채용 공고", tokenGroups), true);
+  assert.equal(matchesQueryTokenGroups("서울시 공공일자리 참여자 모집", tokenGroups), true);
+  assert.equal(matchesQueryTokenGroups("민간기업 일반 채용 공고", tokenGroups), false);
+});
+
+test("expandRecruitmentQueryVariants broadens public employment queries for live search", () => {
+  const variants = expandRecruitmentQueryVariants("공공근로");
+
+  assert.equal(variants.includes("공공근로"), true);
+  assert.equal(variants.includes("공공일자리"), true);
+  assert.equal(variants.includes("기간제근로자"), true);
+  assert.equal(variants.includes("일자리사업"), true);
+});
+
+test("SearchService returns public employment documents for 공공근로 queries", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [{ id: "source_live", trustScore: 0.95 }],
+        organizationAliases: [],
+        tags: [{ id: "tag_recruit", slug: "recruitment", name: "채용" }],
+        documents: [
+          {
+            id: "doc_public_work",
+            representativeTitle: "대전광역시 재활용 분리배출 현장도우미 기간제근로자 모집",
+            representativeSummary: "대전 공공일자리 공고",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-07T00:00:00Z",
+            searchText: "대전광역시 재활용 분리배출 현장도우미 기간제근로자 모집 공공일자리 일자리사업",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_public_work",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            pageUrl: "https://www.daejeon.go.kr/public-work",
+            locationHints: ["대전광역시"],
+          },
+        ],
+        documentTags: [{ documentId: "doc_public_work", tagId: "tag_recruit" }],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [{ documentId: "doc_public_work", recruitmentKind: "public_work" }],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "공공근로",
+    organization: "",
+    region: "대전광역시",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].title.includes("기간제근로자"), true);
 });

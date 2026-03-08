@@ -1,4 +1,5 @@
 import { compactSearchText, firstSentences, normalizeSearchText } from "../../utils/normalize.js";
+import { matchesAnySearchTerm, publicEmploymentTerms } from "../search/search-query.js";
 
 const getRuleText = ({ title, content, assetText, organizationMatches, matchField }) => {
   const fields = {
@@ -70,7 +71,11 @@ export const buildSummary = ({ title, content }) => firstSentences([title, conte
 
 export const deriveRecruitmentProfile = ({ title, content, tagSlugs, organizationNames }) => {
   const combined = normalizeSearchText([title, content, ...organizationNames].join(" "));
-  const isRecruitment = tagSlugs.includes("recruitment") || combined.includes("입사지원") || combined.includes("채용");
+  const isRecruitment =
+    tagSlugs.includes("recruitment") ||
+    combined.includes("입사지원") ||
+    combined.includes("채용") ||
+    matchesAnySearchTerm(combined, publicEmploymentTerms);
   if (!isRecruitment) {
     return null;
   }
@@ -84,6 +89,8 @@ export const deriveRecruitmentProfile = ({ title, content, tagSlugs, organizatio
     combined.includes("한시임기제")
   ) {
     recruitmentKind = "civil_service";
+  } else if (matchesAnySearchTerm(combined, publicEmploymentTerms)) {
+    recruitmentKind = "public_work";
   } else if (combined.includes("인턴")) {
     recruitmentKind = "intern";
   } else if (combined.includes("경력")) {

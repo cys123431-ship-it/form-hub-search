@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  deriveRecruitmentProfile,
   deriveReviewStatus,
   resolveOrganizations,
   scoreTagRules,
@@ -58,4 +59,15 @@ test("deriveReviewStatus keeps low quality documents pending", () => {
     }),
     "approved",
   );
+});
+
+test("deriveRecruitmentProfile recognizes public employment notices", () => {
+  const profile = deriveRecruitmentProfile({
+    title: "대전광역시 공공근로 참여자 모집 공고",
+    content: "환경정비 공공일자리 사업 참여자와 기간제근로자를 모집합니다.",
+    tagSlugs: [],
+    organizationNames: ["대전광역시"],
+  });
+
+  assert.equal(profile?.recruitmentKind, "public_work");
 });

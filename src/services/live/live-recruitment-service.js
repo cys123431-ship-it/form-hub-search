@@ -1,4 +1,5 @@
 import { upsertParsedDocument } from "../crawl/crawl-state-helpers.js";
+import { expandRecruitmentQueryVariants, recruitmentIntentTerms } from "../search/search-query.js";
 import {
   expandOrganizationQueryVariants,
   splitOrganizationQueries,
@@ -8,21 +9,6 @@ import { getMunicipalSearchProfiles, resolveNamedRegion, splitRegionQueries } fr
 const unique = (values) => [...new Set(values.filter(Boolean))];
 const liveSourceType = "live_search";
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
-const recruitmentTerms = [
-  "채용",
-  "공고",
-  "공채",
-  "입사지원",
-  "지원서",
-  "자기소개서",
-  "자소서",
-  "원서",
-  "인턴",
-  "사원",
-  "모집",
-  "공무원",
-  "공공일자리",
-];
 const daejeonParsers = new Set(["daejeon_job_event_live_search", "daejeon_gosi_live_search"]);
 const municipalParsers = new Set(["municipal_official_search", "seoul_official_search"]);
 const regionAwareParsers = new Set([
@@ -46,7 +32,7 @@ const isRecruitmentLikeRequest = (params) => {
 
   return (
     splitOrganizationQueries(params.organization).length > 0 ||
-    recruitmentTerms.some((term) => combinedText.includes(term))
+    recruitmentIntentTerms.some((term) => combinedText.includes(term))
   );
 };
 
@@ -75,6 +61,7 @@ const joinQueryParts = (...parts) =>
 
 const buildLiveQueries = (params) => {
   const queryText = String(params.query ?? "").trim();
+  const queryVariants = queryText ? expandRecruitmentQueryVariants(queryText).slice(0, 4) : [];
   const regionQueries = splitRegionQueries(params.region);
   const regionQuery = regionQueries.length === 1 ? regionQueries[0] : "";
   const organizationQueries = splitOrganizationQueries(params.organization);
@@ -82,37 +69,42 @@ const buildLiveQueries = (params) => {
     organizationQueries.flatMap((entry) => [entry, ...expandOrganizationQueryVariants(entry)]),
   ).slice(0, 3);
 
-  if (regionQuery && expandedOrganizations.length > 0 && queryText) {
+  if (regionQuery && expandedOrganizations.length > 0 && queryVariants.length > 0) {
     return unique([
-      joinQueryParts(regionQuery, expandedOrganizations[0], queryText),
-      joinQueryParts(expandedOrganizations[0], queryText),
-      joinQueryParts(regionQuery, queryText),
+      ...queryVariants.slice(0, 3).map((variant) => joinQueryParts(regionQuery, expandedOrganizations[0], variant)),
+      ...queryVariants.slice(0, 2).map((variant) => joinQueryParts(expandedOrganizations[0], variant)),
+      ...queryVariants.slice(0, 2).map((variant) => joinQueryParts(regionQuery, variant)),
       joinQueryParts(regionQuery, expandedOrganizations[0]),
-    ]).slice(0, 4);
+    ]).slice(0, 6);
   }
 
-  if (regionQuery && queryText) {
-    return unique([joinQueryParts(regionQuery, queryText), queryText]).slice(0, 4);
+  if (regionQuery && queryVariants.length > 0) {
+    return unique([
+      ...queryVariants.slice(0, 3).map((variant) => joinQueryParts(regionQuery, variant)),
+      ...queryVariants.slice(0, 2),
+    ]).slice(0, 5);
   }
 
   if (regionQuery && expandedOrganizations.length > 0) {
     return unique([joinQueryParts(regionQuery, expandedOrganizations[0]), expandedOrganizations[0]]).slice(0, 4);
   }
 
-  if (expandedOrganizations.length > 0 && queryText) {
+  if (expandedOrganizations.length > 0 && queryVariants.length > 0) {
     return unique([
-      ...expandedOrganizations.slice(0, 2).map((organization) => `${organization} ${queryText}`.trim()),
+      ...expandedOrganizations
+        .slice(0, 2)
+        .flatMap((organization) => queryVariants.slice(0, 2).map((variant) => joinQueryParts(organization, variant))),
       ...expandedOrganizations.slice(0, 2),
-      queryText,
-    ]).slice(0, 4);
+      ...queryVariants.slice(0, 2),
+    ]).slice(0, 6);
   }
 
   if (expandedOrganizations.length > 0) {
     return expandedOrganizations.slice(0, 3);
   }
 
-  if (queryText) {
-    return unique([queryText, ...expandOrganizationQueryVariants(queryText)]).slice(0, 3);
+  if (queryVariants.length > 0) {
+    return unique([...queryVariants, ...expandOrganizationQueryVariants(queryText)]).slice(0, 4);
   }
 
   return [];
@@ -120,17 +112,22 @@ const buildLiveQueries = (params) => {
 
 const buildWork24Queries = (params) => {
   const queryText = String(params.query ?? "").trim();
+  const queryVariants = queryText ? expandRecruitmentQueryVariants(queryText).slice(0, 4) : [];
   const organizationQueries = splitOrganizationQueries(params.organization);
   const expandedOrganizations = unique(
     organizationQueries.flatMap((entry) => [entry, ...expandOrganizationQueryVariants(entry)]),
   ).slice(0, 2);
 
-  if (expandedOrganizations.length > 0 && queryText) {
-    return unique([joinQueryParts(expandedOrganizations[0], queryText), queryText, ...expandedOrganizations]).slice(0, 4);
+  if (expandedOrganizations.length > 0 && queryVariants.length > 0) {
+    return unique([
+      ...queryVariants.slice(0, 2).map((variant) => joinQueryParts(expandedOrganizations[0], variant)),
+      ...queryVariants.slice(0, 2),
+      ...expandedOrganizations,
+    ]).slice(0, 5);
   }
 
-  if (queryText) {
-    return [queryText];
+  if (queryVariants.length > 0) {
+    return queryVariants.slice(0, 3);
   }
 
   if (expandedOrganizations.length > 0) {

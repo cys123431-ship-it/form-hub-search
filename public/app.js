@@ -3,6 +3,8 @@ const state = {
   organizations: [],
   selectedTagSlugs: [],
   selectedDocumentId: null,
+  currentPage: 1,
+  lastPayload: null,
 };
 
 const regionSuggestions = [
@@ -38,6 +40,7 @@ const regionSuggestions = [
 const elements = {
   resultCount: document.querySelector("#result-count"),
   resultList: document.querySelector("#result-list"),
+  pagination: document.querySelector("#pagination"),
   detailView: document.querySelector("#detail-view"),
   detailStatus: document.querySelector("#detail-status"),
   tagList: document.querySelector("#tag-list"),
@@ -91,6 +94,13 @@ const safeExternalUrl = (value) => {
 
 const createPill = (text) => createElement("span", { className: "pill", text });
 
+const resetDetailView = (message = "목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.") => {
+  elements.detailStatus.textContent = "문서를 선택하세요";
+  elements.detailView.classList.add("empty-state");
+  clearElement(elements.detailView);
+  elements.detailView.textContent = message;
+};
+
 const renderTagList = () => {
   clearElement(elements.tagList);
   state.tags.forEach((tag) => {
@@ -104,6 +114,7 @@ const renderTagList = () => {
       } else {
         state.selectedTagSlugs = [...state.selectedTagSlugs, tag.slug];
       }
+      state.currentPage = 1;
       renderTagList();
       runSearch();
     });
@@ -139,8 +150,72 @@ const resultMetaText = (item) =>
     .filter(Boolean)
     .join(" · ");
 
+const paginationRange = (currentPage, totalPages) => {
+  const maxVisible = 7;
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([1, totalPages, currentPage]);
+  for (let offset = 1; offset <= 2; offset += 1) {
+    if (currentPage - offset > 1) {
+      pages.add(currentPage - offset);
+    }
+    if (currentPage + offset < totalPages) {
+      pages.add(currentPage + offset);
+    }
+  }
+
+  return [...pages].sort((left, right) => left - right);
+};
+
+const renderPagination = (payload) => {
+  clearElement(elements.pagination);
+
+  if (payload.page.totalPages <= 1) {
+    return;
+  }
+
+  const createPageButton = (label, targetPage, options = {}) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `page-button ${options.active ? "active" : ""}`.trim();
+    button.textContent = label;
+    button.disabled = Boolean(options.disabled);
+    button.addEventListener("click", async () => {
+      state.currentPage = targetPage;
+      await runSearch();
+    });
+    return button;
+  };
+
+  elements.pagination.append(
+    createPageButton("이전", Math.max(1, payload.page.current - 1), {
+      disabled: payload.page.current === 1,
+    }),
+  );
+
+  paginationRange(payload.page.current, payload.page.totalPages).forEach((pageNumber, index, pages) => {
+    if (index > 0 && pageNumber - pages[index - 1] > 1) {
+      elements.pagination.append(createElement("span", { className: "pagination-gap", text: "..." }));
+    }
+
+    elements.pagination.append(
+      createPageButton(String(pageNumber), pageNumber, {
+        active: payload.page.current === pageNumber,
+      }),
+    );
+  });
+
+  elements.pagination.append(
+    createPageButton("다음", Math.min(payload.page.totalPages, payload.page.current + 1), {
+      disabled: payload.page.current === payload.page.totalPages,
+    }),
+  );
+};
+
 const renderResults = (payload) => {
-  elements.resultCount.textContent = `${payload.page.totalItems}건`;
+  elements.resultCount.textContent = `${payload.page.totalItems}건 · ${payload.page.current}/${payload.page.totalPages}페이지`;
   clearElement(elements.resultList);
 
   payload.items.forEach((item) => {
@@ -158,7 +233,7 @@ const renderResults = (payload) => {
     article.addEventListener("click", async () => {
       state.selectedDocumentId = item.id;
       await loadDetail(item.id);
-      renderResults(payload);
+      renderResults(state.lastPayload ?? payload);
     });
     elements.resultList.append(article);
   });
@@ -166,6 +241,8 @@ const renderResults = (payload) => {
   if (payload.items.length === 0) {
     elements.resultList.append(createElement("div", { className: "mini-item", text: "조건에 맞는 문서가 없습니다." }));
   }
+
+  renderPagination(payload);
 };
 
 const renderDetail = (document) => {
@@ -280,13 +357,24 @@ const buildSearchParams = () => {
   }
   searchParams.set("tagMode", elements.tagModeInput.value);
   searchParams.set("sort", elements.sortInput.value);
+  searchParams.set("page", String(state.currentPage));
+  searchParams.set("pageSize", "12");
   return searchParams.toString();
 };
 
 const runSearch = async () => {
   const payload = await fetchJson(`/api/v1/search?${buildSearchParams()}`);
+  state.lastPayload = payload;
   renderResults(payload);
-  if (!state.selectedDocumentId && payload.items[0]) {
+
+  if (payload.items.length === 0) {
+    state.selectedDocumentId = null;
+    resetDetailView("조건에 맞는 문서가 없습니다.");
+    return;
+  }
+
+  const selectedItem = payload.items.find((item) => item.id === state.selectedDocumentId);
+  if (!selectedItem) {
     state.selectedDocumentId = payload.items[0].id;
     await loadDetail(payload.items[0].id);
     renderResults(payload);
@@ -305,17 +393,20 @@ const initialize = async () => {
   renderTagList();
   renderOrganizations();
   renderRegions();
+  resetDetailView();
   await runSearch();
   await renderAdmin();
 };
 
 elements.searchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  state.currentPage = 1;
   await runSearch();
 });
 
 elements.clearTagsButton.addEventListener("click", async () => {
   state.selectedTagSlugs = [];
+  state.currentPage = 1;
   renderTagList();
   await runSearch();
 });

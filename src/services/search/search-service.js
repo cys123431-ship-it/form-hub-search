@@ -1,10 +1,16 @@
-import { compactSearchText, hasAllTokens, splitQueryTokens } from "../../utils/normalize.js";
+import { compactSearchText, splitQueryTokens } from "../../utils/normalize.js";
 import {
   buildOrganizationAliasMap,
   matchesAnyOrganizationQuery,
   matchesOrganizationText,
   splitOrganizationQueries,
 } from "./search-organization.js";
+import {
+  buildQueryTokenGroups,
+  matchesAnySearchTerm,
+  matchesQueryTokenGroups,
+  recruitmentIntentTerms,
+} from "./search-query.js";
 import { matchesAnyRegionQuery, matchesRegionText, splitRegionQueries } from "./search-region.js";
 
 const toPageNumber = (value, fallback) => {
@@ -16,21 +22,6 @@ const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "�
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
 const municipalGeneralSourceParsers = new Set(["municipal_official_search", "seoul_official_search"]);
-const recruitmentIntentTerms = [
-  "채용",
-  "공고",
-  "공채",
-  "입사지원",
-  "지원서",
-  "자기소개서",
-  "자소서",
-  "원서",
-  "인턴",
-  "사원",
-  "모집",
-  "공무원",
-  "일자리",
-];
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -136,10 +127,7 @@ const mergeOrganizations = (structuredOrganizations, fallbackNames) => {
   return [...merged.values()];
 };
 
-const includesAnyText = (text, patterns) => {
-  const normalized = compactSearchText(text);
-  return patterns.some((pattern) => normalized.includes(compactSearchText(pattern)));
-};
+const includesAnyText = (text, patterns) => matchesAnySearchTerm(text, patterns);
 
 const isCivilServiceSearch = ({ queryTokens, organizationQueries, tagSlugs }) =>
   tagSlugs.includes("civil-service") ||
@@ -165,6 +153,7 @@ const isMunicipalGeneralSearch = ({ queryTokens, organizationQueries, regionQuer
 export const computeRelevance = ({
   document,
   queryTokens,
+  queryTokenGroups,
   organizationQueries,
   regionQueries = [],
   organizationAliasMap,
@@ -183,14 +172,16 @@ export const computeRelevance = ({
     regionQueries,
     tagSlugs,
   });
+  const resolvedQueryTokenGroups =
+    queryTokenGroups && queryTokenGroups.length > 0 ? queryTokenGroups : buildQueryTokenGroups(queryTokens);
 
   if (tagSlugs.some((slug) => tagMatches.includes(slug))) {
     score += 30;
   }
-  if (queryTokens.length > 0 && hasAllTokens(document.representativeTitle, queryTokens)) {
+  if (resolvedQueryTokenGroups.length > 0 && matchesQueryTokenGroups(document.representativeTitle, resolvedQueryTokenGroups)) {
     score += 20;
   }
-  if (queryTokens.length > 0 && hasAllTokens(document.searchText, queryTokens)) {
+  if (resolvedQueryTokenGroups.length > 0 && matchesQueryTokenGroups(document.searchText, resolvedQueryTokenGroups)) {
     score += 10;
   }
   if (
@@ -292,6 +283,7 @@ export class SearchService {
 
     const state = await this.repository.readState();
     const queryTokens = splitQueryTokens(params.query);
+    const queryTokenGroups = buildQueryTokenGroups(queryTokens);
     const organizationQueries = splitOrganizationQueries(params.organization);
     const regionQueries = splitRegionQueries(params.region);
     const organizationAliasMap = buildOrganizationAliasMap(state);
@@ -327,13 +319,16 @@ export class SearchService {
           ? context.recruitmentProfile?.recruitmentKind === params.recruitmentKind
           : true,
       )
-      .filter(({ document }) => (queryTokens.length > 0 ? hasAllTokens(document.searchText, queryTokens) : true))
+      .filter(({ document }) =>
+        queryTokenGroups.length > 0 ? matchesQueryTokenGroups(document.searchText, queryTokenGroups) : true,
+      )
       .map(({ document, context }) => ({
         document,
         context,
         relevance: computeRelevance({
           document,
           queryTokens,
+          queryTokenGroups,
           organizationQueries,
           regionQueries,
           organizationAliasMap,

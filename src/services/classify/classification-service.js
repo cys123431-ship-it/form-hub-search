@@ -7,6 +7,7 @@ import {
   scoreTagRules,
 } from "./rules.js";
 import { compactSearchText } from "../../utils/normalize.js";
+import { matchesAnySearchTerm, publicEmploymentTerms } from "../search/search-query.js";
 
 const now = () => new Date().toISOString();
 
@@ -86,6 +87,21 @@ const applyOrganizationTypeTags = (scores, organizations, tags) => {
   }
 };
 
+const applyPublicEmploymentTags = (scores, { title, content, assetText }, tags) => {
+  const searchableText = [title, content, assetText].join(" ");
+  if (!matchesAnySearchTerm(searchableText, publicEmploymentTerms)) {
+    return;
+  }
+
+  const slugToId = new Map(tags.map((tag) => [tag.slug, tag.id]));
+  if (slugToId.get("recruitment")) {
+    scores[slugToId.get("recruitment")] = Math.max(scores[slugToId.get("recruitment")] ?? 0, 1.2);
+  }
+  if (slugToId.get("labor")) {
+    scores[slugToId.get("labor")] = Math.max(scores[slugToId.get("labor")] ?? 0, 1.05);
+  }
+};
+
 export class ClassificationService {
   classifyDocument(state, documentId) {
     const document = state.documents.find((entry) => entry.id === documentId);
@@ -123,6 +139,15 @@ export class ClassificationService {
     });
 
     applyOrganizationTypeTags(tagScores, organizations, state.tags);
+    applyPublicEmploymentTags(
+      tagScores,
+      {
+        title: primaryOccurrence?.sourceTitle ?? "",
+        content: primaryContent?.cleanedText ?? "",
+        assetText,
+      },
+      state.tags,
+    );
 
     const sortedTagIds = Object.entries(tagScores)
       .filter(([, score]) => score >= 1)
