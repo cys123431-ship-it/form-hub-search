@@ -23,6 +23,20 @@
             <span id="result-count" class="pill">0건</span>
           </div>
           <p id="search-meta" class="search-meta">검색 준비 중</p>
+          <div class="search-assist">
+            <div>
+              <div class="section-head compact">
+                <h3>빠른 검색</h3>
+              </div>
+              <div id="preset-list" class="tag-list"></div>
+            </div>
+            <div>
+              <div class="section-head compact">
+                <h3>최근 검색</h3>
+              </div>
+              <div id="recent-search-list" class="tag-list"></div>
+            </div>
+          </div>
 
           <form id="search-form" class="search-form">
             <label>
@@ -113,7 +127,7 @@
               <div id="tag-list" class="tag-list"></div>
             </div>
 
-            <button type="submit" class="primary-button">검색 실행</button>
+            <button id="search-button" type="submit" class="primary-button">검색 실행</button>
           </form>
 
           <div id="result-list" class="result-list"></div>

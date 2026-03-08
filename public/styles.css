@@ -127,6 +127,12 @@ label span {
   gap: 14px;
 }
 
+.search-assist {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
 .search-meta {
   margin: 0 0 14px;
   font-size: 13px;
@@ -183,6 +189,16 @@ select {
   background: rgba(31, 42, 55, 0.06);
 }
 
+.pill.brand {
+  color: #fff8f5;
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+}
+
+.pill.accent {
+  color: #effcfb;
+  background: linear-gradient(135deg, var(--accent), #2f8c86);
+}
+
 .tag-list,
 .tag-row,
 .result-tags {
@@ -195,6 +211,11 @@ select {
   padding: 8px 12px;
   color: var(--ink);
   background: rgba(31, 42, 55, 0.06);
+}
+
+.quick-chip,
+.recent-chip {
+  text-align: left;
 }
 
 .tag-chip.selected {
@@ -275,6 +296,23 @@ select {
 .result-preview {
   margin: 10px 0 0;
   line-height: 1.6;
+}
+
+.result-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mini-inline-text {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty-result-card strong {
+  display: block;
+  margin-bottom: 8px;
 }
 
 .detail-view.empty-state {

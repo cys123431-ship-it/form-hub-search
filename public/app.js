@@ -5,7 +5,20 @@ const state = {
   selectedDocumentId: null,
   currentPage: 1,
   lastPayload: null,
+  isSearching: false,
+  recentSearches: [],
 };
+
+const recentSearchStorageKey = "form-hub-recent-searches";
+const maxRecentSearches = 6;
+const searchPresets = [
+  { label: "삼성전자 자소서", query: "자소서", organization: "삼성전자", sourceScope: "official_corporate" },
+  { label: "공공근로 대전", query: "공공근로", region: "대전광역시", recruitmentKind: "public_work" },
+  { label: "공무원", query: "공무원", sourceScope: "public_recruitment", recruitmentKind: "civil_service" },
+  { label: "근로계약서", query: "근로계약서", sourceScope: "free_forms" },
+  { label: "서울 하수구", query: "하수구", region: "서울특별시", sourceScope: "local_government" },
+  { label: "네이버 채용", query: "네이버", sourceScope: "official_corporate" },
+];
 
 const regionSuggestions = [
   "서울특별시",
@@ -62,7 +75,10 @@ const elements = {
   sourceList: document.querySelector("#source-list"),
   runList: document.querySelector("#run-list"),
   summaryGrid: document.querySelector("#summary-grid"),
+  presetList: document.querySelector("#preset-list"),
+  recentSearchList: document.querySelector("#recent-search-list"),
   searchForm: document.querySelector("#search-form"),
+  searchButton: document.querySelector("#search-button"),
   queryInput: document.querySelector("#query-input"),
   organizationInput: document.querySelector("#organization-input"),
   regionInput: document.querySelector("#region-input"),
@@ -112,6 +128,13 @@ const safeExternalUrl = (value) => {
 
 const createPill = (text) => createElement("span", { className: "pill", text });
 const formatTrust = (value) => `신뢰도 ${Number(value ?? 0).toFixed(2)}`;
+const formatDomain = (value) => {
+  try {
+    return new URL(value).hostname.replace(/^www\./u, "");
+  } catch {
+    return "";
+  }
+};
 const recruitmentKindLabels = {
   open_recruitment: "공채",
   civil_service: "공무원",
@@ -127,6 +150,151 @@ const humanizeAccessMode = (value) =>
     cached_preview_allowed: "미리보기 허용",
     link_only: "링크 전용",
   })[value] ?? value;
+
+const scopeBadgeTone = (scope) =>
+  ({
+    official_corporate: "brand",
+    public_recruitment: "brand",
+    local_government: "accent",
+    free_forms: "accent",
+    whole_web: "muted",
+    job_portals: "muted",
+    all: "muted",
+  })[scope] ?? "muted";
+
+const readRecentSearches = () => {
+  try {
+    const rawValue = localStorage.getItem(recentSearchStorageKey);
+    const parsed = rawValue ? JSON.parse(rawValue) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeRecentSearches = () => {
+  try {
+    localStorage.setItem(recentSearchStorageKey, JSON.stringify(state.recentSearches));
+  } catch {
+    // Ignore storage failures in private mode or blocked environments.
+  }
+};
+
+const buildCurrentSearchRecord = () => ({
+  query: elements.queryInput.value.trim(),
+  organization: elements.organizationInput.value.trim(),
+  region: elements.regionInput.value.trim(),
+  sourceScope: elements.sourceScopeInput.value,
+  recruitmentKind: elements.recruitmentKindInput.value,
+  fileType: elements.fileTypeInput.value,
+  pageSize: elements.pageSizeInput.value || "12",
+  sort: elements.sortInput.value,
+  tagMode: elements.tagModeInput.value,
+  tagSlugs: [...state.selectedTagSlugs],
+});
+
+const createSearchLabel = (record) =>
+  [
+    record.query,
+    record.organization,
+    record.region,
+    record.recruitmentKind ? recruitmentKindLabels[record.recruitmentKind] ?? record.recruitmentKind : "",
+    record.sourceScope && record.sourceScope !== "all" ? elements.sourceScopeInput.querySelector(`option[value="${record.sourceScope}"]`)?.textContent ?? "" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ") || "최근 검색";
+
+const applySearchRecord = async (record) => {
+  elements.queryInput.value = record.query ?? "";
+  elements.organizationInput.value = record.organization ?? "";
+  elements.regionInput.value = record.region ?? "";
+  elements.sourceScopeInput.value = record.sourceScope ?? "all";
+  elements.recruitmentKindInput.value = record.recruitmentKind ?? "";
+  elements.fileTypeInput.value = record.fileType ?? "";
+  elements.pageSizeInput.value = record.pageSize ?? "12";
+  elements.sortInput.value = record.sort ?? "relevance";
+  elements.tagModeInput.value = record.tagMode ?? "and";
+  state.selectedTagSlugs = Array.isArray(record.tagSlugs) ? [...record.tagSlugs] : [];
+  state.currentPage = 1;
+  renderTagList();
+  await runSearch();
+};
+
+const rememberSearch = () => {
+  const record = buildCurrentSearchRecord();
+  const hasMeaningfulValue =
+    Boolean(record.query) ||
+    Boolean(record.organization) ||
+    Boolean(record.region) ||
+    Boolean(record.recruitmentKind) ||
+    Boolean(record.fileType) ||
+    record.sourceScope !== "all" ||
+    (Array.isArray(record.tagSlugs) && record.tagSlugs.length > 0);
+  if (!hasMeaningfulValue) {
+    return;
+  }
+
+  const signature = JSON.stringify(record);
+  state.recentSearches = [record, ...state.recentSearches.filter((entry) => JSON.stringify(entry) !== signature)].slice(
+    0,
+    maxRecentSearches,
+  );
+  writeRecentSearches();
+  renderRecentSearches();
+};
+
+const renderQuickSearches = () => {
+  clearElement(elements.presetList);
+  searchPresets.forEach((preset) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag-chip quick-chip";
+    button.textContent = preset.label;
+    button.addEventListener("click", async () => {
+      await applySearchRecord({
+        query: preset.query ?? "",
+        organization: preset.organization ?? "",
+        region: preset.region ?? "",
+        sourceScope: preset.sourceScope ?? "all",
+        recruitmentKind: preset.recruitmentKind ?? "",
+        fileType: preset.fileType ?? "",
+        pageSize: "12",
+        sort: "relevance",
+        tagMode: "and",
+        tagSlugs: preset.tagSlugs ?? [],
+      });
+    });
+    elements.presetList.append(button);
+  });
+};
+
+const renderRecentSearches = () => {
+  clearElement(elements.recentSearchList);
+  if (state.recentSearches.length === 0) {
+    elements.recentSearchList.append(createElement("span", { className: "mini-inline-text", text: "최근 검색이 없습니다." }));
+    return;
+  }
+
+  state.recentSearches.forEach((record) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tag-chip recent-chip";
+    button.textContent = createSearchLabel(record);
+    button.addEventListener("click", async () => {
+      await applySearchRecord(record);
+    });
+    elements.recentSearchList.append(button);
+  });
+};
+
+const setSearchingState = (isSearching) => {
+  state.isSearching = isSearching;
+  elements.searchButton.disabled = isSearching;
+  elements.searchButton.textContent = isSearching ? "검색 중..." : "검색 실행";
+  if (isSearching) {
+    elements.searchMeta.textContent = "검색 중... 첫 라이브 검색은 다소 느릴 수 있습니다.";
+  }
+};
 
 const resetDetailView = (message = "목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.") => {
   elements.detailStatus.textContent = "문서를 선택하세요";
@@ -187,15 +355,17 @@ const resultMetaText = (item) =>
 
 const renderSearchMeta = (payload) => {
   const live = payload.meta?.liveHydration ?? {};
-  elements.searchMeta.textContent = [
+  const fragments = [
     payload.meta?.sourceScopeLabel ?? "통합검색",
     `응답 ${payload.meta?.durationMs ?? 0}ms`,
     `캐시 적중 ${live.cacheHits ?? 0}`,
     `새 조회 ${live.fetchedQueries ?? 0}`,
     `문서 반영 ${live.fetchedDocuments ?? 0}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  ];
+  if ((live.cacheMisses ?? 0) > 0) {
+    fragments.push("첫 검색은 느릴 수 있고, 이후 같은 검색은 빨라집니다");
+  }
+  elements.searchMeta.textContent = fragments.filter(Boolean).join(" · ");
 };
 
 const paginationRange = (currentPage, totalPages) => {
@@ -274,9 +444,15 @@ const renderResults = (payload) => {
     article.append(createElement("h3", { text: item.title }));
 
     const badgeRow = createElement("div", { className: "result-tags" });
-    badgeRow.append(createPill(item.sourceScopeLabel));
+    badgeRow.append(createElement("span", { className: `pill ${scopeBadgeTone(item.sourceScope)}`, text: item.sourceScopeLabel }));
     badgeRow.append(createPill(formatTrust(item.primarySource?.trustScore)));
     badgeRow.append(createPill(`품질 ${Number(item.qualityScore ?? 0).toFixed(2)}`));
+    if (item.primarySource?.accessMode === "cached_file_allowed") {
+      badgeRow.append(createPill("문서형"));
+    }
+    if (item.primarySource?.url?.includes(".go.kr")) {
+      badgeRow.append(createPill("공식"));
+    }
     if (item.recruitmentKind) {
       badgeRow.append(createPill(recruitmentKindLabels[item.recruitmentKind] ?? item.recruitmentKind));
     }
@@ -285,6 +461,11 @@ const renderResults = (payload) => {
 
     article.append(createElement("p", { className: "result-meta", text: resultMetaText(item) }));
     article.append(createElement("p", { className: "result-preview", text: item.previewText || item.summary || "요약 없음" }));
+
+    const footer = createElement("div", { className: "result-footer" });
+    footer.append(createElement("span", { className: "mini-inline-text", text: formatDomain(item.primarySource?.url) || "출처 도메인 없음" }));
+    footer.append(createElement("span", { className: "mini-inline-text", text: humanizeAccessMode(item.primarySource?.accessMode) }));
+    article.append(footer);
 
     article.addEventListener("click", async () => {
       state.selectedDocumentId = item.id;
@@ -295,7 +476,13 @@ const renderResults = (payload) => {
   });
 
   if (payload.items.length === 0) {
-    elements.resultList.append(createElement("div", { className: "mini-item", text: "조건에 맞는 문서가 없습니다." }));
+    const emptyCard = createElement("div", { className: "mini-item empty-result-card" });
+    emptyCard.append(createElement("strong", { text: "조건에 맞는 문서가 없습니다." }));
+    emptyCard.append(createElement("p", { className: "detail-meta", text: "다른 검색 범위, 더 넓은 지역명, 짧은 키워드로 다시 시도해보세요." }));
+    const tips = createElement("div", { className: "tag-row" });
+    ["통합검색", "전국 행정기관", "기업 공식 채용", "무료 양식"].forEach((label) => tips.append(createPill(label)));
+    emptyCard.append(tips);
+    elements.resultList.append(emptyCard);
   }
 
   renderPagination(payload);
@@ -459,21 +646,27 @@ const buildSearchParams = () => {
 };
 
 const runSearch = async () => {
-  const payload = await fetchJson(`/api/v1/search?${buildSearchParams()}`);
-  state.lastPayload = payload;
-  renderResults(payload);
-
-  if (payload.items.length === 0) {
-    state.selectedDocumentId = null;
-    resetDetailView("조건에 맞는 문서가 없습니다.");
-    return;
-  }
-
-  const selectedItem = payload.items.find((item) => item.id === state.selectedDocumentId);
-  if (!selectedItem) {
-    state.selectedDocumentId = payload.items[0].id;
-    await loadDetail(payload.items[0].id);
+  setSearchingState(true);
+  try {
+    const payload = await fetchJson(`/api/v1/search?${buildSearchParams()}`);
+    state.lastPayload = payload;
     renderResults(payload);
+    rememberSearch();
+
+    if (payload.items.length === 0) {
+      state.selectedDocumentId = null;
+      resetDetailView("조건에 맞는 문서가 없습니다.");
+      return;
+    }
+
+    const selectedItem = payload.items.find((item) => item.id === state.selectedDocumentId);
+    if (!selectedItem) {
+      state.selectedDocumentId = payload.items[0].id;
+      await loadDetail(payload.items[0].id);
+      renderResults(payload);
+    }
+  } finally {
+    setSearchingState(false);
   }
 };
 
@@ -486,9 +679,12 @@ const initialize = async () => {
   const [tags, organizations] = await Promise.all([fetchJson("/api/v1/tags"), fetchJson("/api/v1/organizations")]);
   state.tags = tags;
   state.organizations = organizations;
+  state.recentSearches = readRecentSearches();
   renderTagList();
   renderOrganizations();
   renderRegions();
+  renderQuickSearches();
+  renderRecentSearches();
   resetDetailView();
   await runSearch();
   await renderAdmin();
