@@ -17,6 +17,12 @@ const latestContentForOccurrence = (state, occurrenceId) =>
     .sort((left, right) => right.versionNo - left.versionNo)[0] ?? null;
 
 const getSourceTrust = (state, sourceId) => state.sourceSites.find((source) => source.id === sourceId)?.trustScore ?? 0;
+const tagOptionalApprovalParsers = new Set([
+  "municipal_official_search",
+  "seoul_official_search",
+  "national_admin_board_search",
+  "whole_web_search",
+]);
 
 const choosePrimaryOccurrence = (state, occurrences) =>
   [...occurrences].sort((left, right) => {
@@ -200,8 +206,7 @@ export class ClassificationService {
       qualityScore,
       tagCount: sortedTagIds.length,
       extractionStatus,
-      allowTaglessApproval:
-        ["municipal_official_search", "seoul_official_search"].includes(primarySource?.parserKey) && qualityScore >= 0.55,
+      allowTaglessApproval: tagOptionalApprovalParsers.has(primarySource?.parserKey) && qualityScore >= 0.55,
     });
     document.qualityScore = qualityScore;
     document.sourceCount = occurrences.length;
