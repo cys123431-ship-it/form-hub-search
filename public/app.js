@@ -52,6 +52,7 @@ const elements = {
   queryInput: document.querySelector("#query-input"),
   organizationInput: document.querySelector("#organization-input"),
   regionInput: document.querySelector("#region-input"),
+  sourceScopeInput: document.querySelector("#source-scope-input"),
   tagModeInput: document.querySelector("#tag-mode-input"),
   sortInput: document.querySelector("#sort-input"),
   clearTagsButton: document.querySelector("#clear-tags-button"),
@@ -355,6 +356,7 @@ const buildSearchParams = () => {
   if (state.selectedTagSlugs.length > 0) {
     searchParams.set("tagSlugs", state.selectedTagSlugs.join(","));
   }
+  searchParams.set("sourceScope", elements.sourceScopeInput.value);
   searchParams.set("tagMode", elements.tagModeInput.value);
   searchParams.set("sort", elements.sortInput.value);
   searchParams.set("page", String(state.currentPage));

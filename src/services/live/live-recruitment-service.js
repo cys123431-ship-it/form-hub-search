@@ -4,11 +4,25 @@ import {
   expandOrganizationQueryVariants,
   splitOrganizationQueries,
 } from "../search/search-organization.js";
+import { normalizeSourceScope, sourceMatchesScope } from "../search/source-scope.js";
 import { getMunicipalSearchProfiles, resolveNamedRegion, splitRegionQueries } from "../search/search-region.js";
 
 const unique = (values) => [...new Set(values.filter(Boolean))];
 const liveSourceType = "live_search";
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
+const formIntentTerms = [
+  "양식",
+  "서식",
+  "template",
+  "템플릿",
+  "샘플",
+  "예시",
+  "이력서",
+  "자소서",
+  "자기소개서",
+  "계약서",
+  "제안서",
+];
 const daejeonParsers = new Set(["daejeon_job_event_live_search", "daejeon_gosi_live_search"]);
 const municipalParsers = new Set(["municipal_official_search", "seoul_official_search"]);
 const regionAwareParsers = new Set([
@@ -17,6 +31,7 @@ const regionAwareParsers = new Set([
   "daejeon_gosi_live_search",
   "municipal_official_search",
   "seoul_official_search",
+  "national_admin_board_search",
 ]);
 
 const isCivilServiceRequest = (params) =>
@@ -36,6 +51,27 @@ const isRecruitmentLikeRequest = (params) => {
   );
 };
 
+const isFormLikeRequest = (params) =>
+  [params.query, params.organization, ...(params.tagSlugs ?? [])]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .split(/\s+/)
+    .some((value) => formIntentTerms.some((term) => value.includes(term)));
+
+const isCorporateOfficialRequest = (params, sourceScope) => {
+  if (sourceScope === "official_corporate") {
+    return Boolean(String(params.query ?? "").trim() || String(params.organization ?? "").trim());
+  }
+
+  return splitOrganizationQueries(params.organization).length > 0 || isRecruitmentLikeRequest(params);
+};
+
+const isWholeWebRequest = (params, sourceScope) =>
+  sourceScope === "whole_web"
+    ? Boolean(String(params.query ?? "").trim() || String(params.organization ?? "").trim() || String(params.region ?? "").trim())
+    : Boolean(String(params.query ?? "").trim());
+
 const isMunicipalOfficialSearchRequest = (params) => {
   const queryText = String(params.query ?? "").trim();
   if (!queryText) {
@@ -49,6 +85,38 @@ const isMunicipalOfficialSearchRequest = (params) => {
       text: [params.query, params.organization].filter(Boolean).join(" "),
     }).length > 0
   );
+};
+
+const buildBaseSearchQuery = (params) =>
+  joinQueryParts(String(params.organization ?? "").trim(), String(params.query ?? "").trim()) ||
+  String(params.query ?? "").trim() ||
+  String(params.organization ?? "").trim();
+
+const buildFormQueries = (params) => {
+  const queryText = String(params.query ?? "").trim();
+  if (!queryText) {
+    return [];
+  }
+
+  return unique([
+    queryText,
+    `${queryText} 양식`,
+    `${queryText} 서식`,
+  ]).slice(0, 3);
+};
+
+const buildCorporateQueries = (params) => {
+  const baseQuery = buildBaseSearchQuery(params);
+  if (!baseQuery) {
+    return [];
+  }
+
+  return unique([baseQuery, `${baseQuery} 채용`, `${baseQuery} careers`]).slice(0, 3);
+};
+
+const buildWholeWebQueries = (params) => {
+  const baseQuery = joinQueryParts(params.region, params.organization, params.query) || String(params.query ?? "").trim();
+  return baseQuery ? [baseQuery] : [];
 };
 
 const joinQueryParts = (...parts) =>
@@ -156,6 +224,22 @@ const resolveSourceQueries = (source, params) => {
     return buildWork24Queries(params);
   }
 
+  if (source.parserKey === "national_admin_board_search") {
+    return buildBaseSearchQuery(params) ? [buildBaseSearchQuery(params)] : [];
+  }
+
+  if (source.parserKey === "corporate_official_careers_search") {
+    return buildCorporateQueries(params);
+  }
+
+  if (source.parserKey === "free_form_live_search") {
+    return buildFormQueries(params);
+  }
+
+  if (source.parserKey === "whole_web_search") {
+    return buildWholeWebQueries(params);
+  }
+
   if (daejeonParsers.has(source.parserKey)) {
     const regionQuery = splitRegionQueries(params.region)[0] ?? "";
     const region = resolveNamedRegion(regionQuery);
@@ -184,13 +268,36 @@ export class LiveRecruitmentService {
 
   async hydrate(params) {
     const state = await this.repository.readState();
+    const sourceScope = normalizeSourceScope(params.sourceScope);
     const civilServiceRequest = isCivilServiceRequest(params);
     const recruitmentLikeRequest = isRecruitmentLikeRequest(params);
+    const formLikeRequest = isFormLikeRequest(params);
+    const corporateOfficialRequest = isCorporateOfficialRequest(params, sourceScope);
+    const wholeWebRequest = isWholeWebRequest(params, sourceScope);
     const municipalOfficialSearchRequest = isMunicipalOfficialSearchRequest(params);
     const regionQueries = splitRegionQueries(params.region);
     const liveSources = state.sourceSites.filter((source) => {
       if (source.sourceType !== liveSourceType || source.status !== "active") {
         return false;
+      }
+      if (!sourceMatchesScope(source, sourceScope)) {
+        return false;
+      }
+
+      if (source.parserKey === "whole_web_search") {
+        return wholeWebRequest;
+      }
+
+      if (source.parserKey === "free_form_live_search") {
+        return formLikeRequest || sourceScope === "free_forms";
+      }
+
+      if (source.parserKey === "corporate_official_careers_search") {
+        return corporateOfficialRequest;
+      }
+
+      if (source.parserKey === "national_admin_board_search") {
+        return Boolean(String(params.query ?? "").trim() || String(params.organization ?? "").trim() || regionQueries.length > 0);
       }
 
       if (municipalParsers.has(source.parserKey)) {
@@ -234,6 +341,7 @@ export class LiveRecruitmentService {
               limit: organizationQueries.length > 0 ? 6 : 8,
               requireQueryMatch: organizationQueries.length > 0 || Boolean(params.query.trim()),
               region: regionQuery,
+              organization: params.organization,
             });
             return documents.map((document) => ({ sourceId: source.id, document }));
           } catch {

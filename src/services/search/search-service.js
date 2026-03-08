@@ -11,6 +11,7 @@ import {
   matchesQueryTokenGroups,
   recruitmentIntentTerms,
 } from "./search-query.js";
+import { localGovernmentParserKeys, normalizeSourceScope, sourceMatchesScope } from "./source-scope.js";
 import { matchesAnyRegionQuery, matchesRegionText, splitRegionQueries } from "./search-region.js";
 
 const toPageNumber = (value, fallback) => {
@@ -21,7 +22,7 @@ const toPageNumber = (value, fallback) => {
 const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "군무원", "임기제", "한시임기제"];
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
-const municipalGeneralSourceParsers = new Set(["municipal_official_search", "seoul_official_search"]);
+const municipalGeneralSourceParsers = new Set([...localGovernmentParserKeys]);
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -36,6 +37,7 @@ export const parseSearchParams = (url) => {
     query: url.searchParams.get("query") ?? "",
     organization: url.searchParams.get("organization") ?? "",
     region: url.searchParams.get("region") ?? "",
+    sourceScope: normalizeSourceScope(url.searchParams.get("sourceScope")),
     recruitmentKind: url.searchParams.get("recruitmentKind") ?? "",
     fileType: url.searchParams.get("fileType") ?? "",
     tagSlugs,
@@ -287,6 +289,7 @@ export class SearchService {
     const organizationQueries = splitOrganizationQueries(params.organization);
     const regionQueries = splitRegionQueries(params.region);
     const organizationAliasMap = buildOrganizationAliasMap(state);
+    const normalizedSourceScope = normalizeSourceScope(params.sourceScope);
     const municipalGeneralSearch = isMunicipalGeneralSearch({
       queryTokens,
       organizationQueries,
@@ -297,8 +300,11 @@ export class SearchService {
     const matchedDocuments = state.documents
       .filter((document) => document.visibilityStatus === "active" && document.reviewStatus === "approved")
       .map((document) => ({ document, context: getDocumentContext(state, document) }))
+      .filter(({ document }) => sourceMatchesScope(getPrimarySourceSite(state, document.id), normalizedSourceScope))
       .filter(({ document }) =>
-        municipalGeneralSearch ? municipalGeneralSourceParsers.has(getPrimarySourceSite(state, document.id)?.parserKey) : true,
+        municipalGeneralSearch && normalizedSourceScope !== "whole_web"
+          ? municipalGeneralSourceParsers.has(getPrimarySourceSite(state, document.id)?.parserKey)
+          : true,
       )
       .filter(({ document, context }) => matchesTagMode(context.tags.map((tag) => tag.slug), params.tagSlugs, params.tagMode))
       .filter(({ document, context }) =>

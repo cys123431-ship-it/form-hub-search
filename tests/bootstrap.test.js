@@ -47,5 +47,9 @@ test("seedCatalogIfNeeded merges missing catalog entries into an existing state 
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_work24_live"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_job_alio_live"), true);
   assert.equal(seeded.sourceSites.some((source) => source.id === "source_daejeon_gosi_live"), true);
+  assert.equal(seeded.sourceSites.some((source) => source.id === "source_national_admin_board_live"), true);
+  assert.equal(seeded.sourceSites.some((source) => source.id === "source_corporate_official_careers_live"), true);
+  assert.equal(seeded.sourceSites.some((source) => source.id === "source_free_form_live"), true);
+  assert.equal(seeded.sourceSites.some((source) => source.id === "source_whole_web_live"), true);
   assert.equal(seeded.tags.some((tag) => tag.slug === "cover-letter"), true);
 });

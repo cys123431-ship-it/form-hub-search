@@ -510,3 +510,153 @@ test("SearchService returns public employment documents for 공공근로 queries
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0].title.includes("기간제근로자"), true);
 });
+
+test("SearchService filters results by local_government source scope", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [
+          { id: "source_local", parserKey: "national_admin_board_search", trustScore: 0.92 },
+          { id: "source_web", parserKey: "whole_web_search", trustScore: 0.7 },
+        ],
+        organizationAliases: [],
+        tags: [],
+        documents: [
+          {
+            id: "doc_local",
+            representativeTitle: "대전광역시 하수도 정비 공고",
+            representativeSummary: "대전광역시 공식 보드",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-08T00:00:00Z",
+            searchText: "대전광역시 하수도 정비 공고 고시공고",
+          },
+          {
+            id: "doc_web",
+            representativeTitle: "하수도 관련 일반 블로그 글",
+            representativeSummary: "일반 웹 문서",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-08T00:00:00Z",
+            searchText: "대전광역시 하수도 일반 블로그",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_local",
+            isPrimary: true,
+            sourceId: "source_local",
+            fileType: "html",
+            pageUrl: "https://www.daejeon.go.kr/drh/drhGosiView.do?sno=1",
+            locationHints: ["대전광역시"],
+          },
+          {
+            documentId: "doc_web",
+            isPrimary: true,
+            sourceId: "source_web",
+            fileType: "html",
+            pageUrl: "https://example.com/post",
+            locationHints: ["대전광역시"],
+          },
+        ],
+        documentTags: [],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "하수도",
+    organization: "",
+    region: "대전광역시",
+    sourceScope: "local_government",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].title, "대전광역시 하수도 정비 공고");
+});
+
+test("SearchService filters results by whole_web source scope", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [
+          { id: "source_local", parserKey: "national_admin_board_search", trustScore: 0.92 },
+          { id: "source_web", parserKey: "whole_web_search", trustScore: 0.7 },
+        ],
+        organizationAliases: [],
+        tags: [],
+        documents: [
+          {
+            id: "doc_local",
+            representativeTitle: "대전광역시 하수도 정비 공고",
+            representativeSummary: "대전광역시 공식 보드",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-08T00:00:00Z",
+            searchText: "대전광역시 하수도 정비 공고 고시공고",
+          },
+          {
+            id: "doc_web",
+            representativeTitle: "하수도 관련 일반 블로그 글",
+            representativeSummary: "일반 웹 문서",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            publishedAt: "2026-03-08T00:00:00Z",
+            searchText: "대전광역시 하수도 일반 블로그",
+          },
+        ],
+        documentOccurrences: [
+          {
+            documentId: "doc_local",
+            isPrimary: true,
+            sourceId: "source_local",
+            fileType: "html",
+            pageUrl: "https://www.daejeon.go.kr/drh/drhGosiView.do?sno=1",
+            locationHints: ["대전광역시"],
+          },
+          {
+            documentId: "doc_web",
+            isPrimary: true,
+            sourceId: "source_web",
+            fileType: "html",
+            pageUrl: "https://example.com/post",
+            locationHints: ["대전광역시"],
+          },
+        ],
+        documentTags: [],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "하수도",
+    organization: "",
+    region: "대전광역시",
+    sourceScope: "whole_web",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].title, "하수도 관련 일반 블로그 글");
+});

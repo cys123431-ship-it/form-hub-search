@@ -41,6 +41,18 @@
 
             <div class="inline-fields">
               <label>
+                <span>검색 범위</span>
+                <select id="source-scope-input" name="sourceScope">
+                  <option value="all">통합검색</option>
+                  <option value="job_portals">민간 채용 포털</option>
+                  <option value="official_corporate">기업 공식 채용</option>
+                  <option value="public_recruitment">공공 채용</option>
+                  <option value="local_government">전국 행정기관</option>
+                  <option value="free_forms">무료 양식</option>
+                  <option value="whole_web">웹 전체</option>
+                </select>
+              </label>
+              <label>
                 <span>태그 모드</span>
                 <select id="tag-mode-input" name="tagMode">
                   <option value="and">교집합</option>
