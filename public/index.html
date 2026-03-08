@@ -22,6 +22,7 @@
             <h2>검색</h2>
             <span id="result-count" class="pill">0건</span>
           </div>
+          <p id="search-meta" class="search-meta">검색 준비 중</p>
 
           <form id="search-form" class="search-form">
             <label>
@@ -69,6 +70,41 @@
               </label>
             </div>
 
+            <div class="inline-fields">
+              <label>
+                <span>채용 유형</span>
+                <select id="recruitment-kind-input" name="recruitmentKind">
+                  <option value="">전체</option>
+                  <option value="open_recruitment">공채</option>
+                  <option value="civil_service">공무원</option>
+                  <option value="public_work">공공근로</option>
+                  <option value="intern">인턴</option>
+                  <option value="experienced">경력</option>
+                  <option value="contract">계약직</option>
+                </select>
+              </label>
+              <label>
+                <span>파일 형식</span>
+                <select id="file-type-input" name="fileType">
+                  <option value="">전체</option>
+                  <option value="html">HTML</option>
+                  <option value="pdf">PDF</option>
+                  <option value="hwp">HWP</option>
+                  <option value="hwpx">HWPX</option>
+                  <option value="doc">DOC</option>
+                  <option value="docx">DOCX</option>
+                </select>
+              </label>
+              <label>
+                <span>페이지 크기</span>
+                <select id="page-size-input" name="pageSize">
+                  <option value="12">12개</option>
+                  <option value="24">24개</option>
+                  <option value="36">36개</option>
+                </select>
+              </label>
+            </div>
+
             <div class="tag-area">
               <div class="section-head compact">
                 <h3>태그</h3>
@@ -100,6 +136,7 @@
               <h2>운영 상태</h2>
               <button id="crawl-button" type="button" class="ghost-button">샘플 수집 재실행</button>
             </div>
+            <div id="summary-grid" class="summary-grid"></div>
             <div class="admin-grid">
               <div>
                 <h3>소스</h3>

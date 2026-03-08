@@ -37,17 +37,17 @@ export const createAppContext = async () => {
     ["manual_json_source", new ManualJsonSourceAdapter(samplesDir)],
     ["jobkorea_live_search", new JobKoreaLiveSearchAdapter()],
     ["saramin_live_search", new SaraminLiveSearchAdapter()],
-    ["municipal_official_search", new MunicipalOfficialSearchAdapter()],
-    ["seoul_official_search", new SeoulSiteLiveSearchAdapter()],
+    ["municipal_official_search", new MunicipalOfficialSearchAdapter({ timeoutMs: 3000 })],
+    ["seoul_official_search", new SeoulSiteLiveSearchAdapter({ timeoutMs: 3000 })],
     ["work24_live_search", new Work24LiveSearchAdapter()],
     ["gojobs_live_search", new GojobsLiveSearchAdapter()],
     ["job_alio_live_search", new JobAlioLiveSearchAdapter()],
     ["daejeon_job_event_live_search", new DaejeonJobEventLiveSearchAdapter()],
     ["daejeon_gosi_live_search", new DaejeonGosiLiveSearchAdapter()],
-    ["national_admin_board_search", new NationalAdminBoardSearchAdapter()],
-    ["corporate_official_careers_search", new CorporateOfficialCareersSearchAdapter()],
-    ["free_form_live_search", new FreeFormLiveSearchAdapter()],
-    ["whole_web_search", new WholeWebSearchAdapter()],
+    ["national_admin_board_search", new NationalAdminBoardSearchAdapter({ timeoutMs: 2500 })],
+    ["corporate_official_careers_search", new CorporateOfficialCareersSearchAdapter({ timeoutMs: 2500 })],
+    ["free_form_live_search", new FreeFormLiveSearchAdapter({ timeoutMs: 2500 })],
+    ["whole_web_search", new WholeWebSearchAdapter({ timeoutMs: 2000 })],
   ]);
   const crawlService = new CrawlService({ repository, classificationService, adapterRegistry });
   const liveRecruitmentService = new LiveRecruitmentService({ repository, classificationService, adapterRegistry });

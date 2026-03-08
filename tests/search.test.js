@@ -660,3 +660,83 @@ test("SearchService filters results by whole_web source scope", async () => {
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0].title, "하수도 관련 일반 블로그 글");
 });
+
+test("SearchService returns preview text and search meta", async () => {
+  const repository = {
+    async readState() {
+      return {
+        sourceSites: [
+          {
+            id: "source_live",
+            trustScore: 0.92,
+            name: "전국 행정기관 전용 게시판 검색",
+            parserKey: "national_admin_board_search",
+            policyNote: "공식 행정기관 게시판 중심",
+            allowPreview: true,
+            allowCache: false,
+          },
+        ],
+        liveQueryCacheEntries: [],
+        organizationAliases: [],
+        tags: [],
+        documents: [
+          {
+            id: "doc_1",
+            representativeTitle: "서울특별시 하수구 악취 개선 공지",
+            representativeSummary: "서울특별시 하수구 관련 공지",
+            visibilityStatus: "active",
+            reviewStatus: "approved",
+            qualityScore: 0.82,
+            sourceCount: 1,
+            publishedAt: "2026-03-01T00:00:00Z",
+            searchText: "서울특별시 하수구 악취 개선 공지 안내",
+          },
+        ],
+        documentOccurrences: [
+          {
+            id: "occ_1",
+            documentId: "doc_1",
+            isPrimary: true,
+            sourceId: "source_live",
+            fileType: "html",
+            accessPolicy: "cached_preview_allowed",
+            pageUrl: "https://www.seoul.go.kr/sewer",
+            organizationHints: ["서울특별시"],
+            locationHints: ["서울특별시"],
+          },
+        ],
+        documentContents: [
+          {
+            occurrenceId: "occ_1",
+            versionNo: 1,
+            cleanedText: "서울특별시가 하수구 악취 개선 사업을 추진합니다. 시민 불편 해소를 위한 안내입니다.",
+          },
+        ],
+        documentTags: [],
+        organizations: [],
+        documentOrganizations: [],
+        recruitmentProfiles: [],
+      };
+    },
+  };
+
+  const service = new SearchService(repository);
+  const payload = await service.search({
+    query: "하수구",
+    organization: "",
+    region: "서울특별시",
+    sourceScope: "local_government",
+    recruitmentKind: "",
+    fileType: "",
+    tagSlugs: [],
+    tagMode: "and",
+    sort: "relevance",
+    page: 1,
+    pageSize: 10,
+  });
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].previewText.includes("하수구"), true);
+  assert.equal(payload.items[0].sourceScopeLabel, "전국 행정기관");
+  assert.equal(payload.meta.sourceScopeLabel, "전국 행정기관");
+});

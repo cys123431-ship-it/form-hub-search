@@ -6,6 +6,13 @@ import {
 } from "../search/search-organization.js";
 import { normalizeSourceScope, sourceMatchesScope } from "../search/source-scope.js";
 import { getMunicipalSearchProfiles, resolveNamedRegion, splitRegionQueries } from "../search/search-region.js";
+import {
+  buildLiveQueryCacheKey,
+  createLiveQueryCacheRecord,
+  getLiveQueryCacheEntry,
+  isFreshLiveQueryCacheEntry,
+  upsertLiveQueryCacheEntry,
+} from "./live-query-cache.js";
 
 const unique = (values) => [...new Set(values.filter(Boolean))];
 const liveSourceType = "live_search";
@@ -259,6 +266,8 @@ const resolveSourceQueries = (source, params) => {
   return buildLiveQueries(params);
 };
 
+const getSourceCacheTtlMinutes = (source) => Math.max(5, Number(source.crawlIntervalMinutes) || 30);
+
 export class LiveRecruitmentService {
   constructor({ repository, classificationService, adapterRegistry }) {
     this.repository = repository;
@@ -269,6 +278,7 @@ export class LiveRecruitmentService {
   async hydrate(params) {
     const state = await this.repository.readState();
     const sourceScope = normalizeSourceScope(params.sourceScope);
+    const startedAtMs = Date.now();
     const civilServiceRequest = isCivilServiceRequest(params);
     const recruitmentLikeRequest = isRecruitmentLikeRequest(params);
     const formLikeRequest = isFormLikeRequest(params);
@@ -276,6 +286,15 @@ export class LiveRecruitmentService {
     const wholeWebRequest = isWholeWebRequest(params, sourceScope);
     const municipalOfficialSearchRequest = isMunicipalOfficialSearchRequest(params);
     const regionQueries = splitRegionQueries(params.region);
+    const stats = {
+      cacheHits: 0,
+      fetchedQueries: 0,
+      fetchedSources: 0,
+      fetchedDocuments: 0,
+      cacheMisses: 0,
+      durationMs: 0,
+    };
+    const fetchedSourceIds = new Set();
     const liveSources = state.sourceSites.filter((source) => {
       if (source.sourceType !== liveSourceType || source.status !== "active") {
         return false;
@@ -311,15 +330,18 @@ export class LiveRecruitmentService {
       return recruitmentLikeRequest;
     });
     if (liveSources.length === 0) {
-      return;
+      stats.durationMs = Date.now() - startedAtMs;
+      return stats;
     }
 
     const organizationQueries = splitOrganizationQueries(params.organization);
     if (!String(params.query ?? "").trim() && !String(params.organization ?? "").trim() && regionQueries.length === 0) {
-      return;
+      stats.durationMs = Date.now() - startedAtMs;
+      return stats;
     }
 
     const parsedDocuments = [];
+    const cacheUpdates = [];
     const tasks = liveSources.flatMap((source) => {
       const adapter = this.adapterRegistry.get(source.parserKey);
       if (!adapter) {
@@ -336,6 +358,25 @@ export class LiveRecruitmentService {
         }
 
         return liveQueries.map(async (queryText) => {
+          const cacheKey = buildLiveQueryCacheKey({
+            sourceId: source.id,
+            sourceScope,
+            queryText,
+            organization: params.organization,
+            region: regionQuery,
+          });
+          const cacheEntry = getLiveQueryCacheEntry(state, cacheKey);
+          if (isFreshLiveQueryCacheEntry(cacheEntry)) {
+            stats.cacheHits += 1;
+            return {
+              sourceId: source.id,
+              cacheRecord: null,
+              documents: [],
+            };
+          }
+
+          stats.cacheMisses += 1;
+          const queryStartedAtMs = Date.now();
           try {
             const documents = await adapter.search(queryText, {
               limit: organizationQueries.length > 0 ? 6 : 8,
@@ -343,22 +384,64 @@ export class LiveRecruitmentService {
               region: regionQuery,
               organization: params.organization,
             });
-            return documents.map((document) => ({ sourceId: source.id, document }));
+            const cacheRecord = createLiveQueryCacheRecord({
+              sourceId: source.id,
+              sourceScope,
+              queryText,
+              organization: params.organization,
+              region: regionQuery,
+              ttlMinutes: getSourceCacheTtlMinutes(source),
+              resultCount: documents.length,
+              durationMs: Date.now() - queryStartedAtMs,
+              status: "succeeded",
+            });
+            return {
+              sourceId: source.id,
+              cacheRecord,
+              documents,
+            };
           } catch {
-            return [];
+            return {
+              sourceId: source.id,
+              cacheRecord: createLiveQueryCacheRecord({
+                sourceId: source.id,
+                sourceScope,
+                queryText,
+                organization: params.organization,
+                region: regionQuery,
+                ttlMinutes: 5,
+                resultCount: 0,
+                durationMs: Date.now() - queryStartedAtMs,
+                status: "failed",
+                lastError: "search_failed",
+              }),
+              documents: [],
+            };
           }
         });
       });
     });
 
     const taskResults = await Promise.all(tasks);
-    taskResults.forEach((entries) => {
-      parsedDocuments.push(...entries);
-    });
+    taskResults.forEach((entry) => {
+      if (!entry) {
+        return;
+      }
 
-    if (parsedDocuments.length === 0) {
-      return;
-    }
+      if (entry.cacheRecord) {
+        cacheUpdates.push(entry.cacheRecord);
+        stats.fetchedQueries += 1;
+        if (entry.documents.length > 0) {
+          fetchedSourceIds.add(entry.sourceId);
+        }
+      }
+
+      entry.documents.forEach((document) => {
+        parsedDocuments.push({ sourceId: entry.sourceId, document });
+      });
+    });
+    stats.fetchedDocuments = parsedDocuments.length;
+    stats.fetchedSources = fetchedSourceIds.size;
 
     await this.repository.updateState(async (draftState) => {
       parsedDocuments.forEach(({ sourceId, document: parsedDocument }) => {
@@ -370,6 +453,13 @@ export class LiveRecruitmentService {
         const result = upsertParsedDocument(draftState, source, parsedDocument);
         this.classificationService.classifyDocument(draftState, result.documentId);
       });
+
+      cacheUpdates.forEach((cacheRecord) => {
+        upsertLiveQueryCacheEntry(draftState, cacheRecord);
+      });
     });
+
+    stats.durationMs = Date.now() - startedAtMs;
+    return stats;
   }
 }

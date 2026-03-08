@@ -39,12 +39,32 @@ export const buildQueryScore = (text, queryText) => {
   }, 0);
 };
 
+export const detectFileTypeFromUrl = (url) => {
+  const matched = String(url ?? "").match(/\.(pdf|hwp|hwpx|doc|docx|xls|xlsx|ppt|pptx)(?:$|[?#])/iu);
+  return matched ? matched[1].toLowerCase() : null;
+};
+
+export const buildLiveAssetsFromUrl = (url, title = "") => {
+  const fileType = detectFileTypeFromUrl(url);
+  if (!fileType) {
+    return [];
+  }
+
+  return [
+    {
+      url,
+      fileType,
+      fileName: title ? `${normalizeWhitespace(title).slice(0, 80)}.${fileType}` : `document.${fileType}`,
+    },
+  ];
+};
+
 export const selectRankedResults = (items, queryText, { limit = 6, requireQueryMatch = false } = {}) => {
   const ranked = items
     .map((item, index) => ({
       item,
       index,
-      score: buildQueryScore(item.matchText ?? "", queryText),
+      score: buildQueryScore(item.matchText ?? "", queryText) + Number(item.rankBoost ?? 0),
     }))
     .sort((left, right) => right.score - left.score || left.index - right.index);
 

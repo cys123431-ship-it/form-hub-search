@@ -52,6 +52,7 @@ select {
 .hero-copy,
 .pill,
 .result-meta,
+.search-meta,
 .detail-meta,
 .mini-item,
 label span {
@@ -124,6 +125,11 @@ label span {
 .search-form {
   display: grid;
   gap: 14px;
+}
+
+.search-meta {
+  margin: 0 0 14px;
+  font-size: 13px;
 }
 
 label {
@@ -217,7 +223,8 @@ select {
 
 .result-card,
 .mini-item,
-.source-card {
+.source-card,
+.summary-card {
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 22px;
@@ -265,6 +272,11 @@ select {
   font-size: 13px;
 }
 
+.result-preview {
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+
 .detail-view.empty-state {
   min-height: 180px;
   place-items: center;
@@ -292,9 +304,24 @@ select {
   gap: 14px;
 }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.summary-card {
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.5;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(247, 240, 231, 0.9));
+}
+
 @media (max-width: 920px) {
   .grid,
   .admin-grid,
+  .summary-grid,
   .inline-fields {
     grid-template-columns: 1fr;
   }

@@ -1,6 +1,10 @@
 import { parseJsonBody, sendError, sendJson } from "../../utils/http.js";
 
 export const createAdminController = ({ adminService }) => ({
+  async summary(_request, response) {
+    sendJson(response, 200, await adminService.getSummary());
+  },
+
   async sources(_request, response) {
     sendJson(response, 200, await adminService.listSources());
   },

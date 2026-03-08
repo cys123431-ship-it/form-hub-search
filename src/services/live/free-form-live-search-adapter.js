@@ -1,6 +1,6 @@
 import { compactSearchText } from "../../utils/normalize.js";
 import { fetchPublicSearchResults, normalizeHost, uniqueQueries } from "./ddg-search.js";
-import { selectRankedResults } from "./live-search-utils.js";
+import { buildLiveAssetsFromUrl, detectFileTypeFromUrl, selectRankedResults } from "./live-search-utils.js";
 
 const excludedHosts = [
   "jobkorea.co.kr",
@@ -18,12 +18,22 @@ const excludedHosts = [
   "m.shopping.naver.com",
   "smartstore.naver.com",
   "kin.naver.com",
+  "blog.naver.com",
+  "cafe.naver.com",
+  "post.naver.com",
+  "namu.wiki",
+  "tistory.com",
+  "brunch.co.kr",
+  "velog.io",
+  "youtube.com",
+  "www.youtube.com",
 ];
 
 const formKeywords = ["양식", "서식", "template", "템플릿", "샘플", "예시", "이력서", "자소서", "계약서", "제안서"];
 const fileHintPattern = /\.(pdf|hwp|hwpx|doc|docx|xlsx|pptx)(?:$|[?#])/iu;
 
 const unique = (values) => [...new Set(values.filter(Boolean))];
+const officialDocumentPattern = /\.(go\.kr|or\.kr|ac\.kr|co\.kr|com)\b/iu;
 
 const isFormCandidateUrl = (url) => {
   const hostname = normalizeHost(url);
@@ -36,6 +46,25 @@ const isFormCandidateUrl = (url) => {
   }
 
   return true;
+};
+
+const buildRankBoost = (url, text) => {
+  let boost = 0;
+  const hostname = normalizeHost(url);
+  if (detectFileTypeFromUrl(url)) {
+    boost += 12;
+  }
+  if (hostname.endsWith(".go.kr") || hostname.endsWith(".or.kr")) {
+    boost += 10;
+  }
+  if (officialDocumentPattern.test(url)) {
+    boost += 4;
+  }
+  const textKey = compactSearchText(text);
+  if (["양식", "서식", "template", "이력서", "자소서", "계약서", "제안서"].some((keyword) => textKey.includes(compactSearchText(keyword)))) {
+    boost += 4;
+  }
+  return boost;
 };
 
 const matchesFormIntent = (text, url) => {
@@ -96,8 +125,9 @@ export class FreeFormLiveSearchAdapter {
           organizationHints: [],
           locationHints: [],
           publishedAt: null,
-          assets: [],
+          assets: buildLiveAssetsFromUrl(result.url, result.title),
           matchText: result.text,
+          rankBoost: buildRankBoost(result.url, result.text),
         });
       });
     }

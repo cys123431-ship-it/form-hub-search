@@ -1,9 +1,29 @@
 import { splitOrganizationQueries } from "../search/search-organization.js";
 import { splitRegionQueries } from "../search/search-region.js";
 import { fetchPublicSearchResults, normalizeHost, uniqueQueries } from "./ddg-search.js";
-import { selectRankedResults } from "./live-search-utils.js";
+import { buildLiveAssetsFromUrl, detectFileTypeFromUrl, selectRankedResults } from "./live-search-utils.js";
 
-const excludedHosts = ["ader.naver.com", "adcr.naver.com", "search.naver.com", "m.search.naver.com"];
+const excludedHosts = [
+  "ader.naver.com",
+  "adcr.naver.com",
+  "search.naver.com",
+  "m.search.naver.com",
+  "blog.naver.com",
+  "cafe.naver.com",
+  "kin.naver.com",
+  "post.naver.com",
+  "tistory.com",
+  "brunch.co.kr",
+  "velog.io",
+  "youtube.com",
+  "www.youtube.com",
+  "instagram.com",
+  "www.instagram.com",
+  "facebook.com",
+  "www.facebook.com",
+  "x.com",
+  "www.x.com",
+];
 
 const buildQueries = (queryText, { region = "", organization = "" } = {}) => {
   const trimmedQuery = String(queryText ?? "").trim();
@@ -17,6 +37,40 @@ const buildQueries = (queryText, { region = "", organization = "" } = {}) => {
   }
 
   return uniqueQueries([baseText, [primaryOrganization, trimmedQuery].filter(Boolean).join(" "), trimmedQuery]).slice(0, 3);
+};
+
+const buildRankBoost = (url, organizationHints, locationHints) => {
+  const hostname = normalizeHost(url);
+  const hostKey = hostname.replace(/[^a-z0-9가-힣]/giu, "");
+  let boost = 0;
+
+  if (hostname.endsWith(".go.kr")) {
+    boost += 16;
+  }
+  if (hostname.endsWith(".or.kr") || hostname.endsWith(".ac.kr")) {
+    boost += 10;
+  }
+  if (detectFileTypeFromUrl(url)) {
+    boost += 8;
+  }
+  if (
+    organizationHints.some((hint) => {
+      const hintKey = String(hint ?? "").toLowerCase().replace(/[^a-z0-9가-힣]/giu, "");
+      return hintKey.length >= 2 && (hostKey.includes(hintKey) || hintKey.includes(hostKey));
+    })
+  ) {
+    boost += 8;
+  }
+  if (
+    locationHints.some((hint) => {
+      const hintKey = String(hint ?? "").toLowerCase().replace(/[^a-z0-9가-힣]/giu, "");
+      return hintKey.length >= 2 && (hostKey.includes(hintKey) || hintKey.includes(hostKey));
+    })
+  ) {
+    boost += 4;
+  }
+
+  return boost;
 };
 
 export class WholeWebSearchAdapter {
@@ -50,8 +104,9 @@ export class WholeWebSearchAdapter {
           organizationHints,
           locationHints,
           publishedAt: null,
-          assets: [],
+          assets: buildLiveAssetsFromUrl(result.url, result.title),
           matchText: result.text,
+          rankBoost: buildRankBoost(result.url, organizationHints, locationHints),
         });
       });
     }

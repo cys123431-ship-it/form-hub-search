@@ -282,6 +282,83 @@
       "normalizedName": "한국전력공사",
       "organizationType": "public_company",
       "aliases": ["한전", "kepco"]
+    },
+    {
+      "id": "org_samsung_electronics",
+      "name": "삼성전자",
+      "normalizedName": "삼성전자",
+      "organizationType": "enterprise",
+      "aliases": ["samsung", "samsung electronics", "삼성"]
+    },
+    {
+      "id": "org_lg_electronics",
+      "name": "LG전자",
+      "normalizedName": "lg전자",
+      "organizationType": "enterprise",
+      "aliases": ["엘지전자", "lg", "lg electronics"]
+    },
+    {
+      "id": "org_hyundai_motor",
+      "name": "현대자동차",
+      "normalizedName": "현대자동차",
+      "organizationType": "enterprise",
+      "aliases": ["현대차", "hyundai", "hyundai motor"]
+    },
+    {
+      "id": "org_naver",
+      "name": "네이버",
+      "normalizedName": "네이버",
+      "organizationType": "enterprise",
+      "aliases": ["naver", "naver corp", "navercorp"]
+    },
+    {
+      "id": "org_kakao",
+      "name": "카카오",
+      "normalizedName": "카카오",
+      "organizationType": "enterprise",
+      "aliases": ["kakao", "kakaocorp"]
+    },
+    {
+      "id": "org_sk_hynix",
+      "name": "SK하이닉스",
+      "normalizedName": "sk하이닉스",
+      "organizationType": "enterprise",
+      "aliases": ["sk hynix", "skhynix", "하이닉스"]
+    },
+    {
+      "id": "org_coupang",
+      "name": "쿠팡",
+      "normalizedName": "쿠팡",
+      "organizationType": "enterprise",
+      "aliases": ["coupang"]
+    },
+    {
+      "id": "org_kb",
+      "name": "국민은행",
+      "normalizedName": "국민은행",
+      "organizationType": "bank",
+      "aliases": ["kb", "kb국민은행"]
+    },
+    {
+      "id": "org_shinhan",
+      "name": "신한은행",
+      "normalizedName": "신한은행",
+      "organizationType": "bank",
+      "aliases": ["shinhan", "shinhanbank"]
+    },
+    {
+      "id": "org_woori",
+      "name": "우리은행",
+      "normalizedName": "우리은행",
+      "organizationType": "bank",
+      "aliases": ["woori", "wooribank"]
+    },
+    {
+      "id": "org_hana",
+      "name": "하나은행",
+      "normalizedName": "하나은행",
+      "organizationType": "bank",
+      "aliases": ["hana", "hanabank"]
     }
   ],
   "tagKeywordRules": [

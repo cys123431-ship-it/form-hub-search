@@ -26,3 +26,24 @@ test("JsonStateRepository recreates state when the file is corrupted", async () 
       .map((entry) => fs.rm(path.join(path.dirname(stateFilePath), entry), { force: true })),
   );
 });
+
+test("JsonStateRepository normalizes legacy state files with new cache fields", async () => {
+  const stateFilePath = path.join(os.tmpdir(), `form-hub-legacy-state-${Date.now()}.json`);
+  await fs.writeFile(
+    stateFilePath,
+    JSON.stringify({
+      meta: { schemaVersion: 1 },
+      documents: [],
+      sourceSites: [],
+    }),
+    "utf8",
+  );
+
+  const repository = new JsonStateRepository(stateFilePath);
+  const state = await repository.readState();
+
+  assert.deepEqual(state.liveQueryCacheEntries, []);
+  assert.equal(state.meta.schemaVersion, 2);
+
+  await fs.rm(stateFilePath, { force: true });
+});

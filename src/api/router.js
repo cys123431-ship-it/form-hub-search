@@ -26,6 +26,9 @@ export const createRouter = ({ publicController, adminController, publicDir }) =
       if (request.method === "GET" && pathname === "/api/v1/admin/sources") {
         return adminController.sources(request, response, url);
       }
+      if (request.method === "GET" && pathname === "/api/v1/admin/summary") {
+        return adminController.summary(request, response, url);
+      }
       if (request.method === "GET" && pathname === "/api/v1/admin/crawl-runs") {
         return adminController.crawlRuns(request, response, url);
       }

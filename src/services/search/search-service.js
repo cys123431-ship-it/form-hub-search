@@ -11,7 +11,7 @@ import {
   matchesQueryTokenGroups,
   recruitmentIntentTerms,
 } from "./search-query.js";
-import { localGovernmentParserKeys, normalizeSourceScope, sourceMatchesScope } from "./source-scope.js";
+import { localGovernmentParserKeys, normalizeSourceScope, resolveSourceScopes, sourceMatchesScope } from "./source-scope.js";
 import { matchesAnyRegionQuery, matchesRegionText, splitRegionQueries } from "./search-region.js";
 
 const toPageNumber = (value, fallback) => {
@@ -23,6 +23,15 @@ const civilServiceTerms = ["공무원", "국가공무원", "지방공무원", "�
 const civilServicePenaltyTerms = ["학원", "강사", "상조"];
 const publicCompanyTerms = ["공기업", "공공기관", "alio", "알리오"];
 const municipalGeneralSourceParsers = new Set([...localGovernmentParserKeys]);
+const sourceScopeLabelMap = {
+  all: "통합검색",
+  job_portals: "민간 채용 포털",
+  official_corporate: "기업 공식 채용",
+  public_recruitment: "공공 채용",
+  local_government: "전국 행정기관",
+  free_forms: "무료 양식",
+  whole_web: "웹 전체",
+};
 
 export const parseSearchParams = (url) => {
   const tagSlugs = (url.searchParams.get("tagSlugs") ?? "")
@@ -76,11 +85,30 @@ const getPrimarySource = (state, documentId) => {
   }
 
   const source = state.sourceSites.find((entry) => entry.id === occurrence.sourceId);
+  const sourceScope = [...resolveSourceScopes(source)][0] ?? "all";
   return {
     name: source?.name ?? "알 수 없는 출처",
     url: occurrence.pageUrl,
     trustScore: source?.trustScore ?? 0,
+    sourceScope,
+    sourceScopeLabel: sourceScopeLabelMap[sourceScope] ?? "통합검색",
+    parserKey: source?.parserKey ?? null,
+    policyNote: source?.policyNote ?? "",
+    accessMode: occurrence.accessPolicy ?? (source?.allowCache ? "cached_file_allowed" : source?.allowPreview ? "cached_preview_allowed" : "link_only"),
   };
+};
+
+const getPrimaryContent = (state, documentId) => {
+  const occurrence = getPrimaryOccurrence(state, documentId);
+  if (!occurrence) {
+    return null;
+  }
+
+  return (
+    (state.documentContents ?? [])
+      .filter((entry) => entry.occurrenceId === occurrence.id)
+      .sort((left, right) => right.versionNo - left.versionNo)[0] ?? null
+  );
 };
 
 const getDocumentContext = (state, document) => {
@@ -229,19 +257,6 @@ export const computeRelevance = ({
   return score;
 };
 
-const buildSearchItem = (state, document, context) => ({
-  id: document.id,
-  title: document.representativeTitle,
-  summary: document.representativeSummary,
-  tags: context.tags.map((tag) => tag.name),
-  organizations: context.organizations.map((organization) => organization.name),
-  locations: context.locations,
-  publishedAt: document.publishedAt,
-  fileTypes: context.fileTypes,
-  previewAvailable: Boolean(document.representativeSummary),
-  primarySource: getPrimarySource(state, document.id),
-});
-
 const buildFacets = (items, documents) => {
   const tagCounts = new Map();
   const organizationCounts = new Map();
@@ -265,6 +280,62 @@ const buildFacets = (items, documents) => {
   };
 };
 
+const buildPreviewSnippet = (text, rawTerms) => {
+  const normalizedText = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!normalizedText) {
+    return "";
+  }
+
+  const terms = [...new Set(rawTerms.map((value) => String(value ?? "").trim()).filter((value) => value.length >= 2))];
+  const lowerText = normalizedText.toLowerCase();
+  let firstMatchIndex = -1;
+
+  terms.forEach((term) => {
+    const matchIndex = lowerText.indexOf(term.toLowerCase());
+    if (matchIndex >= 0 && (firstMatchIndex === -1 || matchIndex < firstMatchIndex)) {
+      firstMatchIndex = matchIndex;
+    }
+  });
+
+  if (firstMatchIndex === -1) {
+    return normalizedText.length > 220 ? `${normalizedText.slice(0, 220).trim()}...` : normalizedText;
+  }
+
+  const startIndex = Math.max(0, firstMatchIndex - 80);
+  const endIndex = Math.min(normalizedText.length, firstMatchIndex + 160);
+  const prefix = startIndex > 0 ? "..." : "";
+  const suffix = endIndex < normalizedText.length ? "..." : "";
+  return `${prefix}${normalizedText.slice(startIndex, endIndex).trim()}${suffix}`;
+};
+
+const buildSearchItem = (state, document, context, searchContext) => {
+  const primarySource = getPrimarySource(state, document.id);
+  const primaryContent = getPrimaryContent(state, document.id);
+  const previewText = buildPreviewSnippet(
+    primaryContent?.cleanedText ?? document.searchText ?? document.representativeSummary ?? document.representativeTitle,
+    [...searchContext.queryTokens, ...searchContext.organizationQueries, ...searchContext.regionQueries, document.representativeTitle],
+  );
+
+  return {
+    id: document.id,
+    title: document.representativeTitle,
+    summary: document.representativeSummary,
+    previewText,
+    tags: context.tags.map((tag) => tag.name),
+    organizations: context.organizations.map((organization) => organization.name),
+    locations: context.locations,
+    publishedAt: document.publishedAt,
+    fileTypes: context.fileTypes,
+    recruitmentKind: context.recruitmentProfile?.recruitmentKind ?? null,
+    previewAvailable: Boolean(document.representativeSummary || previewText),
+    qualityScore: document.qualityScore,
+    sourceCount: document.sourceCount,
+    primarySource,
+    sourceScope: primarySource?.sourceScope ?? "all",
+    sourceScopeLabel: primarySource?.sourceScopeLabel ?? sourceScopeLabelMap.all,
+  };
+};
+
 export class SearchService {
   constructor(repository, liveRecruitmentService = null) {
     this.repository = repository;
@@ -272,12 +343,14 @@ export class SearchService {
   }
 
   async search(params) {
+    const startedAtMs = Date.now();
+    let liveHydration = null;
     if (
       this.liveRecruitmentService &&
       (String(params.query ?? "").trim() || String(params.organization ?? "").trim() || String(params.region ?? "").trim())
     ) {
       try {
-        await this.liveRecruitmentService.hydrate(params);
+        liveHydration = await this.liveRecruitmentService.hydrate(params);
       } catch {
         // Live lookup should not block local catalog search.
       }
@@ -358,7 +431,8 @@ export class SearchService {
     const totalItems = matchedDocuments.length;
     const startIndex = (params.page - 1) * params.pageSize;
     const pageItems = matchedDocuments.slice(startIndex, startIndex + params.pageSize);
-    const serializedItems = pageItems.map(({ document, context }) => buildSearchItem(state, document, context));
+    const searchContext = { queryTokens, organizationQueries, regionQueries };
+    const serializedItems = pageItems.map(({ document, context }) => buildSearchItem(state, document, context, searchContext));
 
     return {
       items: serializedItems,
@@ -369,9 +443,22 @@ export class SearchService {
         totalPages: Math.max(1, Math.ceil(totalItems / params.pageSize)),
       },
       facets: buildFacets(
-        matchedDocuments.map(({ document, context }) => buildSearchItem(state, document, context)),
+        matchedDocuments.map(({ document, context }) => buildSearchItem(state, document, context, searchContext)),
         matchedDocuments,
       ),
+      meta: {
+        durationMs: Date.now() - startedAtMs,
+        sourceScope: normalizedSourceScope,
+        sourceScopeLabel: sourceScopeLabelMap[normalizedSourceScope] ?? sourceScopeLabelMap.all,
+        liveHydration: liveHydration ?? {
+          cacheHits: 0,
+          cacheMisses: 0,
+          fetchedQueries: 0,
+          fetchedSources: 0,
+          fetchedDocuments: 0,
+          durationMs: 0,
+        },
+      },
     };
   }
 
@@ -390,14 +477,17 @@ export class SearchService {
         title: occurrence.sourceTitle,
         url: occurrence.pageUrl,
         fileType: occurrence.fileType,
+        accessPolicy: occurrence.accessPolicy,
         publishedAt: occurrence.sourcePublishedAt,
         isPrimary: occurrence.isPrimary,
         source: state.sourceSites.find((source) => source.id === occurrence.sourceId)?.name ?? "알 수 없는 출처",
-        assets: state.documentAssets
+        assets: (state.documentAssets ?? [])
           .filter((asset) => asset.occurrenceId === occurrence.id)
           .map((asset) => ({ name: asset.fileName, url: asset.sourceUrl, accessPolicy: asset.accessPolicy })),
         previewText:
-          state.documentContents.find((content) => content.occurrenceId === occurrence.id && content.extractionStatus === "succeeded")
+          (state.documentContents ?? []).find(
+            (content) => content.occurrenceId === occurrence.id && content.extractionStatus === "succeeded",
+          )
             ?.cleanedText ?? "",
       }));
 
@@ -405,6 +495,13 @@ export class SearchService {
       id: document.id,
       title: document.representativeTitle,
       summary: document.representativeSummary,
+      previewText: buildPreviewSnippet(
+        (state.documentContents ?? [])
+          .filter((entry) => occurrences.some((occurrence) => occurrence.id === entry.occurrenceId))
+          .map((entry) => entry.cleanedText ?? "")
+          .join(" "),
+        [document.representativeTitle, ...context.organizations.map((organization) => organization.name)],
+      ),
       tags: context.tags.map((tag) => ({ slug: tag.slug, name: tag.name })),
       organizations: context.organizations.map((organization) => organization.name),
       locations: context.locations,
@@ -412,6 +509,7 @@ export class SearchService {
       qualityScore: document.qualityScore,
       publishedAt: document.publishedAt,
       recruitmentProfile: context.recruitmentProfile,
+      primarySource: getPrimarySource(state, document.id),
       sources: occurrences,
     };
   }

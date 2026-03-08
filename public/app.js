@@ -17,6 +17,11 @@ const regionSuggestions = [
   "울산광역시",
   "세종특별자치시",
   "경기도",
+  "수원시",
+  "성남시",
+  "고양시",
+  "용인시",
+  "부천시",
   "강남구",
   "서초구",
   "송파구",
@@ -28,6 +33,13 @@ const regionSuggestions = [
   "서구",
   "동구",
   "대덕구",
+  "청주시",
+  "천안시",
+  "전주시",
+  "창원시",
+  "김해시",
+  "포항시",
+  "제주시",
   "해운대구",
   "수영구",
   "수성구",
@@ -39,6 +51,7 @@ const regionSuggestions = [
 
 const elements = {
   resultCount: document.querySelector("#result-count"),
+  searchMeta: document.querySelector("#search-meta"),
   resultList: document.querySelector("#result-list"),
   pagination: document.querySelector("#pagination"),
   detailView: document.querySelector("#detail-view"),
@@ -48,6 +61,7 @@ const elements = {
   regionList: document.querySelector("#region-list"),
   sourceList: document.querySelector("#source-list"),
   runList: document.querySelector("#run-list"),
+  summaryGrid: document.querySelector("#summary-grid"),
   searchForm: document.querySelector("#search-form"),
   queryInput: document.querySelector("#query-input"),
   organizationInput: document.querySelector("#organization-input"),
@@ -55,6 +69,9 @@ const elements = {
   sourceScopeInput: document.querySelector("#source-scope-input"),
   tagModeInput: document.querySelector("#tag-mode-input"),
   sortInput: document.querySelector("#sort-input"),
+  recruitmentKindInput: document.querySelector("#recruitment-kind-input"),
+  fileTypeInput: document.querySelector("#file-type-input"),
+  pageSizeInput: document.querySelector("#page-size-input"),
   clearTagsButton: document.querySelector("#clear-tags-button"),
   crawlButton: document.querySelector("#crawl-button"),
 };
@@ -94,6 +111,22 @@ const safeExternalUrl = (value) => {
 };
 
 const createPill = (text) => createElement("span", { className: "pill", text });
+const formatTrust = (value) => `신뢰도 ${Number(value ?? 0).toFixed(2)}`;
+const recruitmentKindLabels = {
+  open_recruitment: "공채",
+  civil_service: "공무원",
+  public_work: "공공근로",
+  intern: "인턴",
+  experienced: "경력",
+  contract: "계약직",
+};
+
+const humanizeAccessMode = (value) =>
+  ({
+    cached_file_allowed: "파일 캐시 허용",
+    cached_preview_allowed: "미리보기 허용",
+    link_only: "링크 전용",
+  })[value] ?? value;
 
 const resetDetailView = (message = "목록에서 문서를 고르면 출처, 첨부 링크, 채용 메타데이터를 볼 수 있습니다.") => {
   elements.detailStatus.textContent = "문서를 선택하세요";
@@ -143,6 +176,7 @@ const renderRegions = () => {
 
 const resultMetaText = (item) =>
   [
+    item.primarySource?.name ?? "",
     item.organizations.join(", "),
     item.locations?.join(", "),
     item.fileTypes.join(", ").toUpperCase(),
@@ -150,6 +184,19 @@ const resultMetaText = (item) =>
   ]
     .filter(Boolean)
     .join(" · ");
+
+const renderSearchMeta = (payload) => {
+  const live = payload.meta?.liveHydration ?? {};
+  elements.searchMeta.textContent = [
+    payload.meta?.sourceScopeLabel ?? "통합검색",
+    `응답 ${payload.meta?.durationMs ?? 0}ms`,
+    `캐시 적중 ${live.cacheHits ?? 0}`,
+    `새 조회 ${live.fetchedQueries ?? 0}`,
+    `문서 반영 ${live.fetchedDocuments ?? 0}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
 
 const paginationRange = (currentPage, totalPages) => {
   const maxVisible = 7;
@@ -217,6 +264,7 @@ const renderPagination = (payload) => {
 
 const renderResults = (payload) => {
   elements.resultCount.textContent = `${payload.page.totalItems}건 · ${payload.page.current}/${payload.page.totalPages}페이지`;
+  renderSearchMeta(payload);
   clearElement(elements.resultList);
 
   payload.items.forEach((item) => {
@@ -224,12 +272,19 @@ const renderResults = (payload) => {
       className: `result-card ${state.selectedDocumentId === item.id ? "active" : ""}`,
     });
     article.append(createElement("h3", { text: item.title }));
-    article.append(createElement("p", { className: "result-meta", text: resultMetaText(item) }));
 
-    const tagRow = createElement("div", { className: "result-tags" });
-    item.tags.forEach((tag) => tagRow.append(createPill(tag)));
-    article.append(tagRow);
-    article.append(createElement("p", { text: item.summary ?? "요약 없음" }));
+    const badgeRow = createElement("div", { className: "result-tags" });
+    badgeRow.append(createPill(item.sourceScopeLabel));
+    badgeRow.append(createPill(formatTrust(item.primarySource?.trustScore)));
+    badgeRow.append(createPill(`품질 ${Number(item.qualityScore ?? 0).toFixed(2)}`));
+    if (item.recruitmentKind) {
+      badgeRow.append(createPill(recruitmentKindLabels[item.recruitmentKind] ?? item.recruitmentKind));
+    }
+    item.tags.forEach((tag) => badgeRow.append(createPill(tag)));
+    article.append(badgeRow);
+
+    article.append(createElement("p", { className: "result-meta", text: resultMetaText(item) }));
+    article.append(createElement("p", { className: "result-preview", text: item.previewText || item.summary || "요약 없음" }));
 
     article.addEventListener("click", async () => {
       state.selectedDocumentId = item.id;
@@ -254,12 +309,24 @@ const renderDetail = (document) => {
   const summarySection = createElement("div", { className: "detail-section" });
   summarySection.append(createElement("h3", { text: document.title }));
   summarySection.append(createElement("p", { text: document.summary ?? "요약 없음" }));
+  summarySection.append(createElement("p", { className: "result-preview", text: document.previewText || "미리보기 없음" }));
   summarySection.append(
     createElement("p", {
       className: "detail-meta",
       text: `${document.organizations.join(", ") || "기관 없음"} · ${document.locations.join(", ") || "지역 없음"} · 품질 점수 ${document.qualityScore}`,
     }),
   );
+  if (document.primarySource) {
+    summarySection.append(
+      createElement("p", {
+        className: "detail-meta",
+        text: `${document.primarySource.name} · ${document.primarySource.sourceScopeLabel} · ${formatTrust(document.primarySource.trustScore)} · ${humanizeAccessMode(document.primarySource.accessMode)}`,
+      }),
+    );
+    if (document.primarySource.policyNote) {
+      summarySection.append(createElement("p", { className: "detail-meta", text: document.primarySource.policyNote }));
+    }
+  }
   const tagRow = createElement("div", { className: "tag-row" });
   document.tags.forEach((tag) => tagRow.append(createPill(tag.name)));
   summarySection.append(tagRow);
@@ -285,7 +352,7 @@ const renderDetail = (document) => {
     sourceCard.append(
       createElement("p", {
         className: "detail-meta",
-        text: `${source.source} · ${source.fileType?.toUpperCase() ?? "HTML"} · ${source.publishedAt?.slice(0, 10) ?? "-"}`,
+        text: `${source.source} · ${source.fileType?.toUpperCase() ?? "HTML"} · ${source.publishedAt?.slice(0, 10) ?? "-"} · ${humanizeAccessMode(source.accessPolicy)}`,
       }),
     );
     sourceCard.append(createElement("p", { text: source.previewText || "미리보기 텍스트 없음" }));
@@ -312,19 +379,40 @@ const renderDetail = (document) => {
 };
 
 const renderAdmin = async () => {
-  const [sources, runs] = await Promise.all([
+  const [summary, sources, runs] = await Promise.all([
+    fetchJson("/api/v1/admin/summary"),
     fetchJson("/api/v1/admin/sources"),
     fetchJson("/api/v1/admin/crawl-runs"),
   ]);
 
+  clearElement(elements.summaryGrid);
   clearElement(elements.sourceList);
   clearElement(elements.runList);
+
+  [
+    `문서 ${summary.documents.total} · 승인 ${summary.documents.approved} · 대기 ${summary.documents.pending}`,
+    `소스 ${summary.sources.active}/${summary.sources.total} · 라이브 ${summary.sources.live}`,
+    `캐시 ${summary.cache.freshEntries} fresh · ${summary.cache.staleEntries} stale`,
+    `정책 파일캐시 ${summary.policy.cachedFileAllowed} · 미리보기 ${summary.policy.previewAllowed} · 링크 ${summary.policy.linkOnly}`,
+  ].forEach((text) => {
+    elements.summaryGrid.append(createElement("div", { className: "summary-card", text }));
+  });
 
   sources.forEach((source) => {
     const item = createElement("div", { className: "mini-item" });
     item.append(createElement("strong", { text: source.name }));
     item.append(document.createElement("br"));
-    item.append(document.createTextNode(`상태 ${source.status} · 신뢰도 ${source.trustScore}`));
+    item.append(
+      document.createTextNode(
+        `상태 ${source.status} · 신뢰도 ${source.trustScore} · 캐시 ${source.cache.freshCount}/${source.cache.totalEntries}`,
+      ),
+    );
+    item.append(document.createElement("br"));
+    item.append(document.createTextNode(`${humanizeAccessMode(source.accessMode)} · ${source.crawlIntervalMinutes ?? "-"}분 주기`));
+    if (source.policyNote) {
+      item.append(document.createElement("br"));
+      item.append(document.createTextNode(source.policyNote));
+    }
     elements.sourceList.append(item);
   });
 
@@ -353,6 +441,12 @@ const buildSearchParams = () => {
   if (elements.regionInput.value.trim()) {
     searchParams.set("region", elements.regionInput.value.trim());
   }
+  if (elements.recruitmentKindInput.value) {
+    searchParams.set("recruitmentKind", elements.recruitmentKindInput.value);
+  }
+  if (elements.fileTypeInput.value) {
+    searchParams.set("fileType", elements.fileTypeInput.value);
+  }
   if (state.selectedTagSlugs.length > 0) {
     searchParams.set("tagSlugs", state.selectedTagSlugs.join(","));
   }
@@ -360,7 +454,7 @@ const buildSearchParams = () => {
   searchParams.set("tagMode", elements.tagModeInput.value);
   searchParams.set("sort", elements.sortInput.value);
   searchParams.set("page", String(state.currentPage));
-  searchParams.set("pageSize", "12");
+  searchParams.set("pageSize", elements.pageSizeInput.value || "12");
   return searchParams.toString();
 };
 

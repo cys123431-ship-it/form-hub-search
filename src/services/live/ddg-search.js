@@ -4,7 +4,6 @@ import { decodeHtml, toText } from "./live-search-utils.js";
 
 const searchProviders = [
   { kind: "html", baseUrl: "https://html.duckduckgo.com/html/" },
-  { kind: "html", baseUrl: "https://duckduckgo.com/html/" },
   { kind: "lite", baseUrl: "https://lite.duckduckgo.com/lite/" },
 ];
 
